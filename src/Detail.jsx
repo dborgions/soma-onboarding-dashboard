@@ -10,14 +10,13 @@ import Logboek from "./Logboek.jsx";
 import { programmadag, percentageVoorType } from "./lib/berekeningen.js";
 import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
 
-const CATEGORIE_KLEUREN = [C.group, C.works, "#2c9c8f", C.accent, C.green, "#9b5bb5"];
-
 export default function Detail({
   onboarder,
   onderwerpen,
   standMap,
   niveauLabels,
   mijlpalen,
+  fasen,
   gebruiker,
   gebruikersNaam,
   opmerkingenLijst,
@@ -35,10 +34,7 @@ export default function Detail({
   const kennis = percentageVoorType(standMap, onderwerpen, "kennis");
   const vaardigheden = percentageVoorType(standMap, onderwerpen, "vaardigheid");
 
-  const categorieen = [];
-  for (const o of onderwerpen) {
-    if (!categorieen.includes(o.categorie)) categorieen.push(o.categorie);
-  }
+  const onderwerpenZonderFase = onderwerpen.filter((o) => !o.fase_id);
 
   async function verwerkTik(onderwerp, huidigeNiveau, getikt) {
     const nieuweNiveau = getikt === huidigeNiveau ? huidigeNiveau - 1 : getikt;
@@ -90,13 +86,14 @@ export default function Detail({
       )}
 
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        {categorieen.map((cat, i) => {
-          const items = onderwerpen.filter((o) => o.categorie === cat);
-          const kleur = CATEGORIE_KLEUREN[i % CATEGORIE_KLEUREN.length];
+        {fasen.map((fase) => {
+          const items = onderwerpen.filter((o) => o.fase_id === fase.id);
+          if (items.length === 0) return null;
           return (
-            <details key={cat} open style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${kleur}` }}>
-              <summary style={{ padding: "12px 16px", fontWeight: 600, color: C.group, cursor: "pointer" }}>
-                {cat}
+            <details key={fase.id} open style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${fase.kleur}` }}>
+              <summary style={{ padding: "12px 16px", cursor: "pointer" }}>
+                <div style={{ fontWeight: 600, color: C.group }}>{fase.label}</div>
+                <div style={{ fontSize: 12, color: C.soft, fontWeight: 400 }}>{fase.sub}</div>
               </summary>
               <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 14 }}>
                 {items.map((o) => {
@@ -121,6 +118,33 @@ export default function Detail({
             </details>
           );
         })}
+        {onderwerpenZonderFase.length > 0 && (
+          <details open style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${C.soft}` }}>
+            <summary style={{ padding: "12px 16px", fontWeight: 600, color: C.group, cursor: "pointer" }}>
+              Nog niet ingedeeld
+            </summary>
+            <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 14 }}>
+              {onderwerpenZonderFase.map((o) => {
+                const huidigeNiveau = standMap.get(o.id) || 0;
+                return (
+                  <OnderwerpRegel
+                    key={o.id}
+                    onderwerp={o}
+                    niveau={huidigeNiveau}
+                    label={niveauLabels.get(huidigeNiveau)}
+                    gebruiker={gebruiker}
+                    onTik={(n) => verwerkTik(o, huidigeNiveau, n)}
+                    criteriaOpen={criteriaTonen === o.id}
+                    onToggleCriteria={() => setCriteriaTonen(criteriaTonen === o.id ? null : o.id)}
+                    opmerkingen={opmerkingenLijst.filter((op) => op.onderwerp_id === o.id)}
+                    gebruikersNaam={gebruikersNaam}
+                    onOpmerkingToevoegen={(tekst) => voegOpmerkingToe(onboarder, o.id, tekst)}
+                  />
+                );
+              })}
+            </div>
+          </details>
+        )}
       </div>
 
       <div style={{ marginTop: 16 }}>

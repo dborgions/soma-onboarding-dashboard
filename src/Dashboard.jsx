@@ -14,6 +14,7 @@ export default function Dashboard({ gebruiker }) {
   const [gesprekken, setGesprekken] = useState(new Map()); // onboarder_id -> [gesprek, ...]
   const [totaalKoppelingen, setTotaalKoppelingen] = useState(0);
   const [mijlpalen, setMijlpalen] = useState([]);
+  const [fasen, setFasen] = useState([]);
   const [niveauLabels, setNiveauLabels] = useState(new Map());
   const [opmerkingen, setOpmerkingen] = useState(new Map()); // onboarder_id -> [opmerking, ...]
   const [logboek, setLogboek] = useState(new Map()); // onboarder_id -> [logregel, ...]
@@ -57,6 +58,7 @@ export default function Dashboard({ gebruiker }) {
       { data: opmerkingenData, error: eOpmerkingen },
       { data: logboekData, error: eLogboek },
       { data: gebruikersData, error: eGebruikers },
+      { data: fasenData, error: eFasen },
     ] = await Promise.all([
       supabase.from("onboarders").select("id, naam, startdatum, programma_dagen, vestiging_id, vestigingen(naam)").eq("actief", true),
       supabase.from("onderwerpen").select("*").eq("actief", true).order("volgorde"),
@@ -68,9 +70,10 @@ export default function Dashboard({ gebruiker }) {
       supabase.from("opmerkingen").select("*").order("tijdstip"),
       supabase.from("logboek").select("*"),
       supabase.from("gebruikers").select("id, naam"),
+      supabase.from("fasen").select("id, label, sub, kleur").order("volgorde"),
     ]);
 
-    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers;
+    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen;
     if (eerste) {
       setFout("Het laden van de gegevens is niet gelukt: " + eerste.message);
       setLaden(false);
@@ -87,6 +90,7 @@ export default function Dashboard({ gebruiker }) {
     setOpmerkingen(groepeerLijstPerOnboarder(opmerkingenData));
     setLogboek(groepeerLijstPerOnboarder(logboekData));
     setGebruikersNaam(new Map(gebruikersData.map((g) => [g.id, g.naam])));
+    setFasen(fasenData);
     setLaden(false);
   }
 
@@ -179,6 +183,7 @@ export default function Dashboard({ gebruiker }) {
     onderwerpen,
     niveauLabels,
     mijlpalen,
+    fasen,
     gebruikersNaam,
     updateNiveau,
     undoNiveau,

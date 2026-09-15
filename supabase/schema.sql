@@ -27,6 +27,10 @@ create table if not exists specialist_gesprekken (onboarder_id uuid, competentie
 create table if not exists mijlpalen (id uuid primary key default gen_random_uuid());
 create table if not exists verwachtingsniveaus (mijlpaal_id uuid, onderwerp_id uuid, primary key (mijlpaal_id, onderwerp_id));
 
+-- Fasen van het wervingsproces (Basis, 1.0 Instroom, ...) — gebruikt om de
+-- onderwerpenblokken op de detailpagina te groeperen, zoals in het ontwerp.
+create table if not exists fasen (id text primary key);
+
 -- ─────────────────────────────────────────────────────────────
 -- 1b. Kolommen (toevoegen als ze nog ontbreken — dit repareert een
 -- tabel die al bestond in een oudere/onvolledige vorm).
@@ -55,6 +59,12 @@ alter table onderwerpen add column if not exists criterium_4 text;
 alter table onderwerpen add column if not exists training_verplicht boolean not null default false;
 alter table onderwerpen add column if not exists volgorde int not null default 0;
 alter table onderwerpen add column if not exists actief boolean not null default true;
+alter table onderwerpen add column if not exists fase_id text references fasen(id);
+
+alter table fasen add column if not exists label text not null default '';
+alter table fasen add column if not exists sub text not null default '';
+alter table fasen add column if not exists kleur text not null default '#6b7280';
+alter table fasen add column if not exists volgorde int not null default 0;
 
 alter table niveau_labels add column if not exists label text not null default '';
 
@@ -278,6 +288,7 @@ alter table competentie_specialisten enable row level security;
 alter table specialist_gesprekken enable row level security;
 alter table mijlpalen enable row level security;
 alter table verwachtingsniveaus enable row level security;
+alter table fasen enable row level security;
 
 -- Mentor: volledige rechten op alle tabellen.
 drop policy if exists mentor_all_vestigingen on vestigingen;
@@ -308,6 +319,8 @@ drop policy if exists mentor_all_mijlpalen on mijlpalen;
 create policy mentor_all_mijlpalen on mijlpalen for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 drop policy if exists mentor_all_verwachtingsniveaus on verwachtingsniveaus;
 create policy mentor_all_verwachtingsniveaus on verwachtingsniveaus for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_fasen on fasen;
+create policy mentor_all_fasen on fasen for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 
 -- Referentiedata: iedereen die ingelogd is mag lezen.
 drop policy if exists select_vestigingen on vestigingen;
@@ -326,6 +339,8 @@ drop policy if exists select_competentie_specialisten on competentie_specialiste
 create policy select_competentie_specialisten on competentie_specialisten for select using (auth.uid() is not null);
 drop policy if exists select_verwachtingsniveaus on verwachtingsniveaus;
 create policy select_verwachtingsniveaus on verwachtingsniveaus for select using (auth.uid() is not null);
+drop policy if exists select_fasen on fasen;
+create policy select_fasen on fasen for select using (auth.uid() is not null);
 
 -- gebruikers: naam/rol van collega's is niet gevoelig binnen SOMA, dus elke
 -- ingelogde gebruiker mag de lijst lezen (nodig om "door wie" te kunnen tonen
@@ -474,6 +489,52 @@ from (values
   ('Nazorg', 'Relatiebeheer', 'vaardigheid', 4, 'Yvo', 'https://somaworks.welder.cloud/v2/content/169785/view/169785', 'Belt voor de start, neemt de belangrijkste punten door en belt na de eerste werkdag na.', 'Doet dat bij elke plaatsing, ook als het druk is.', false, 260)
 ) as v(naam, categorie, type, max_niveau, aanspreekpunt, welder_link, criterium_3, criterium_4, training_verplicht, volgorde)
 where not exists (select 1 from onderwerpen x where x.naam = v.naam);
+
+insert into fasen (id, label, sub, kleur, volgorde)
+select v.id, v.label, v.sub, v.kleur, v.volgorde from (values
+  ('Basis', 'Basis', 'Vanaf dag 1: het verhaal en de systemen', '#6b7280', 10),
+  ('1.0', '1.0 Instroom', 'Kandidaten vinden', '#3b73ad', 20),
+  ('2.0', '2.0 Selectie', 'Begrijpen wie je voor je hebt', '#2c9c8f', 30),
+  ('3.0', '3.0 & 4.0 Presentatie en acquisitie', 'Verkopen aan kandidaat en klant', '#f18825', 40),
+  ('5.0', '5.0 Plaatsing', 'Van akkoord naar aan het werk', '#9b5bb5', 50),
+  ('6.0', '6.0 Klant- en kandidaatbeheer', 'Vasthouden en uitbouwen', '#2c2f7b', 60)
+) as v(id, label, sub, kleur, volgorde)
+where not exists (select 1 from fasen x where x.id = v.id);
+
+-- Onderwerpen aan hun fase koppelen (update i.p.v. insert, want de onderwerpen
+-- zelf staan er al — dit repareert ook een database die al gezaaid was voordat
+-- fasen bestonden).
+update onderwerpen set fase_id = v.fase_id
+from (values
+  ('Missie, visie en kernwaarden', 'Basis'),
+  ('SOMA Group | alle labels', 'Basis'),
+  ('Terug naar de basis', 'Basis'),
+  ('Kostprijsberekening', '2.0'),
+  ('CAO kennis en ADV', '5.0'),
+  ('Gelijkwaardige arbeidsvoorwaarden', '5.0'),
+  ('Fasen-systeem', 'Basis'),
+  ('Wtta en toelating', '3.0'),
+  ('Subsidies', '2.0'),
+  ('Ziekte', '5.0'),
+  ('VCU', '5.0'),
+  ('Carerix cursus', 'Basis'),
+  ('CARV cursus', 'Basis'),
+  ('Buddee', 'Basis'),
+  ('Welder', 'Basis'),
+  ('Easyflex', 'Basis'),
+  ('Kandidaten werven', '1.0'),
+  ('Intake voeren', '2.0'),
+  ('Kandidaat overtuigen', '3.0'),
+  ('Kandidaat presenteren', '3.0'),
+  ('Kandidaat voorbereiden', '3.0'),
+  ('Commercieel denken', '3.0'),
+  ('Acquisitie', '3.0'),
+  ('Relatiebeheer', '6.0'),
+  ('Kandidaatbeheer', '6.0'),
+  ('Nazorg', '5.0')
+) as v(naam, fase_id)
+where onderwerpen.naam = v.naam
+  and onderwerpen.fase_id is distinct from v.fase_id;
 
 insert into kerncompetenties (naam, volgorde)
 select v.naam, v.volgorde from (values
