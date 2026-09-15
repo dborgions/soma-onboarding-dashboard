@@ -31,6 +31,7 @@ export default function LoginScreen() {
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
+        fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
       }}
     >
       <form

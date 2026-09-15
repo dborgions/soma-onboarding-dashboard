@@ -1,6 +1,8 @@
--- SOMA Onboarding Dashboard — Stap 1: Fundament
--- Voer dit script één keer uit in de Supabase SQL Editor van je (nieuwe) project.
--- Volgorde: extensies, tabellen, functies/triggers, RLS, seed-data.
+-- SOMA Onboarding Dashboard — volledig schema, veilig om herhaaldelijk te draaien,
+-- ook op een database die al een oudere/onvolledige versie van dit schema bevat.
+-- Voert uit: maakt ontbrekende tabellen aan, voegt ontbrekende kolommen toe aan
+-- bestaande tabellen, herstelt functies/triggers/rechten, en zaait data per rij
+-- (alleen rijen die er nog niet zijn — bestaande data wordt nooit overschreven).
 
 -- ─────────────────────────────────────────────────────────────
 -- 0. Extensies
@@ -8,120 +10,149 @@
 create extension if not exists pgcrypto;
 
 -- ─────────────────────────────────────────────────────────────
--- 1. Tabellen
+-- 1. Tabellen (aanmaken als ze nog niet bestaan)
 -- ─────────────────────────────────────────────────────────────
-create table vestigingen (
-  id uuid primary key default gen_random_uuid(),
-  naam text not null
-);
+create table if not exists vestigingen (id uuid primary key default gen_random_uuid());
+create table if not exists gebruikers (id uuid primary key references auth.users(id));
+create table if not exists onboarders (id uuid primary key default gen_random_uuid());
+create table if not exists onderwerpen (id uuid primary key default gen_random_uuid());
+create table if not exists niveau_labels (niveau int primary key);
+create table if not exists niveau_stand (onboarder_id uuid, onderwerp_id uuid, primary key (onboarder_id, onderwerp_id));
+create table if not exists logboek (id uuid primary key default gen_random_uuid());
+create table if not exists opmerkingen (id uuid primary key default gen_random_uuid());
+create table if not exists kerncompetenties (id uuid primary key default gen_random_uuid());
+create table if not exists specialisten (id uuid primary key default gen_random_uuid());
+create table if not exists competentie_specialisten (competentie_id uuid, specialist_id uuid, primary key (competentie_id, specialist_id));
+create table if not exists specialist_gesprekken (onboarder_id uuid, competentie_id uuid, specialist_id uuid, primary key (onboarder_id, competentie_id, specialist_id));
+create table if not exists mijlpalen (id uuid primary key default gen_random_uuid());
+create table if not exists verwachtingsniveaus (mijlpaal_id uuid, onderwerp_id uuid, primary key (mijlpaal_id, onderwerp_id));
 
-create table gebruikers (
-  id uuid primary key references auth.users(id),
-  naam text not null,
-  rol text not null check (rol in ('medewerker', 'vm', 'mentor')),
-  vestiging_id uuid references vestigingen(id)
-);
+-- ─────────────────────────────────────────────────────────────
+-- 1b. Kolommen (toevoegen als ze nog ontbreken — dit repareert een
+-- tabel die al bestond in een oudere/onvolledige vorm).
+-- ─────────────────────────────────────────────────────────────
+alter table vestigingen add column if not exists naam text not null default '';
 
-create table onboarders (
-  id uuid primary key default gen_random_uuid(),
-  gebruiker_id uuid references gebruikers(id),
-  naam text not null,
-  vestiging_id uuid not null references vestigingen(id),
-  startdatum date not null,
-  programma_dagen int not null default 100,
-  actief boolean not null default true
-);
+alter table gebruikers add column if not exists naam text not null default '';
+alter table gebruikers add column if not exists rol text not null default 'medewerker';
+alter table gebruikers add column if not exists vestiging_id uuid references vestigingen(id);
 
-create table onderwerpen (
-  id uuid primary key default gen_random_uuid(),
-  naam text not null,
-  categorie text not null,
-  type text not null check (type in ('kennis', 'vaardigheid')),
-  max_niveau int not null default 4 check (max_niveau in (2, 4)),
-  welder_link text,
-  aanspreekpunt text,
-  criterium_3 text,
-  criterium_4 text,
-  training_verplicht boolean not null default false,
-  volgorde int not null,
-  actief boolean not null default true
-);
+alter table onboarders add column if not exists gebruiker_id uuid references gebruikers(id);
+alter table onboarders add column if not exists naam text not null default '';
+alter table onboarders add column if not exists vestiging_id uuid references vestigingen(id);
+alter table onboarders add column if not exists startdatum date not null default current_date;
+alter table onboarders add column if not exists programma_dagen int not null default 100;
+alter table onboarders add column if not exists actief boolean not null default true;
 
-create table niveau_labels (
-  niveau int primary key check (niveau between 0 and 4),
-  label text not null
-);
+alter table onderwerpen add column if not exists naam text not null default '';
+alter table onderwerpen add column if not exists categorie text not null default '';
+alter table onderwerpen add column if not exists type text not null default 'kennis';
+alter table onderwerpen add column if not exists max_niveau int not null default 4;
+alter table onderwerpen add column if not exists welder_link text;
+alter table onderwerpen add column if not exists aanspreekpunt text;
+alter table onderwerpen add column if not exists criterium_3 text;
+alter table onderwerpen add column if not exists criterium_4 text;
+alter table onderwerpen add column if not exists training_verplicht boolean not null default false;
+alter table onderwerpen add column if not exists volgorde int not null default 0;
+alter table onderwerpen add column if not exists actief boolean not null default true;
 
-create table niveau_stand (
-  onboarder_id uuid not null references onboarders(id),
-  onderwerp_id uuid not null references onderwerpen(id),
-  niveau int not null default 0 check (niveau between 0 and 4),
-  bijgewerkt_op timestamptz not null default now(),
-  bijgewerkt_door uuid references gebruikers(id),
-  primary key (onboarder_id, onderwerp_id)
-);
+alter table niveau_labels add column if not exists label text not null default '';
 
-create table logboek (
-  id uuid primary key default gen_random_uuid(),
-  onboarder_id uuid not null references onboarders(id),
-  onderwerp_id uuid not null references onderwerpen(id),
-  van_niveau int not null,
-  naar_niveau int not null,
-  door_gebruiker uuid not null references gebruikers(id),
-  programmadag int not null,
-  tijdstip timestamptz not null default now()
-);
+alter table niveau_stand add column if not exists niveau int not null default 0;
+alter table niveau_stand add column if not exists bijgewerkt_op timestamptz not null default now();
+alter table niveau_stand add column if not exists bijgewerkt_door uuid references gebruikers(id);
 
-create table opmerkingen (
-  id uuid primary key default gen_random_uuid(),
-  onboarder_id uuid not null references onboarders(id),
-  onderwerp_id uuid not null references onderwerpen(id),
-  door_gebruiker uuid not null references gebruikers(id),
-  programmadag int not null,
-  tekst text not null,
-  tijdstip timestamptz not null default now()
-);
+alter table logboek add column if not exists onboarder_id uuid references onboarders(id);
+alter table logboek add column if not exists onderwerp_id uuid references onderwerpen(id);
+alter table logboek add column if not exists van_niveau int not null default 0;
+alter table logboek add column if not exists naar_niveau int not null default 0;
+alter table logboek add column if not exists door_gebruiker uuid references gebruikers(id);
+alter table logboek add column if not exists programmadag int not null default 0;
+alter table logboek add column if not exists tijdstip timestamptz not null default now();
 
-create table kerncompetenties (
-  id uuid primary key default gen_random_uuid(),
-  naam text not null,
-  volgorde int not null
-);
+alter table opmerkingen add column if not exists onboarder_id uuid references onboarders(id);
+alter table opmerkingen add column if not exists onderwerp_id uuid references onderwerpen(id);
+alter table opmerkingen add column if not exists door_gebruiker uuid references gebruikers(id);
+alter table opmerkingen add column if not exists programmadag int not null default 0;
+alter table opmerkingen add column if not exists tekst text not null default '';
+alter table opmerkingen add column if not exists tijdstip timestamptz not null default now();
 
-create table specialisten (
-  id uuid primary key default gen_random_uuid(),
-  naam text not null
-);
+alter table kerncompetenties add column if not exists naam text not null default '';
+alter table kerncompetenties add column if not exists volgorde int not null default 0;
 
-create table competentie_specialisten (
-  competentie_id uuid not null references kerncompetenties(id),
-  specialist_id uuid not null references specialisten(id),
-  primary key (competentie_id, specialist_id)
-);
+alter table specialisten add column if not exists naam text not null default '';
 
-create table specialist_gesprekken (
-  onboarder_id uuid not null references onboarders(id),
-  competentie_id uuid not null references kerncompetenties(id),
-  specialist_id uuid not null references specialisten(id),
-  status text not null check (status in ('ingepland', 'gevoerd')),
-  bijgewerkt_door uuid not null references gebruikers(id),
-  programmadag int not null,
-  tijdstip timestamptz not null default now(),
-  primary key (onboarder_id, competentie_id, specialist_id)
-);
+alter table specialist_gesprekken add column if not exists status text not null default 'ingepland';
+alter table specialist_gesprekken add column if not exists bijgewerkt_door uuid references gebruikers(id);
+alter table specialist_gesprekken add column if not exists programmadag int not null default 0;
+alter table specialist_gesprekken add column if not exists tijdstip timestamptz not null default now();
 
-create table mijlpalen (
-  id uuid primary key default gen_random_uuid(),
-  naam text not null,
-  dag int not null
-);
+alter table mijlpalen add column if not exists naam text not null default '';
+alter table mijlpalen add column if not exists dag int not null default 0;
 
-create table verwachtingsniveaus (
-  mijlpaal_id uuid not null references mijlpalen(id),
-  onderwerp_id uuid not null references onderwerpen(id),
-  verwacht_niveau int not null check (verwacht_niveau between 0 and 4),
-  primary key (mijlpaal_id, onderwerp_id)
-);
+alter table verwachtingsniveaus add column if not exists verwacht_niveau int not null default 0;
+
+-- ─────────────────────────────────────────────────────────────
+-- 1c. Controles (check-constraints) — alleen toevoegen als ze nog niet bestaan.
+-- ─────────────────────────────────────────────────────────────
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'gebruikers_rol_check') then
+    alter table gebruikers add constraint gebruikers_rol_check check (rol in ('medewerker', 'vm', 'mentor'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'onderwerpen_type_check') then
+    alter table onderwerpen add constraint onderwerpen_type_check check (type in ('kennis', 'vaardigheid'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'onderwerpen_max_niveau_check') then
+    alter table onderwerpen add constraint onderwerpen_max_niveau_check check (max_niveau in (2, 4));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'niveau_labels_niveau_check') then
+    alter table niveau_labels add constraint niveau_labels_niveau_check check (niveau between 0 and 4);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'niveau_stand_niveau_check') then
+    alter table niveau_stand add constraint niveau_stand_niveau_check check (niveau between 0 and 4);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'specialist_gesprekken_status_check') then
+    alter table specialist_gesprekken add constraint specialist_gesprekken_status_check check (status in ('ingepland', 'gevoerd'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'verwachtingsniveaus_niveau_check') then
+    alter table verwachtingsniveaus add constraint verwachtingsniveaus_niveau_check check (verwacht_niveau between 0 and 4);
+  end if;
+end $$;
+
+-- ─────────────────────────────────────────────────────────────
+-- 1d. Foreign keys op de koppeltabellen (de sleutelkolommen staan al in de
+-- primary key sinds de eerste create table, maar zonder verwijzing — die
+-- voegen we hier apart toe zodat Supabase de relaties ook herkent).
+-- ─────────────────────────────────────────────────────────────
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'niveau_stand_onboarder_fk') then
+    alter table niveau_stand add constraint niveau_stand_onboarder_fk foreign key (onboarder_id) references onboarders(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'niveau_stand_onderwerp_fk') then
+    alter table niveau_stand add constraint niveau_stand_onderwerp_fk foreign key (onderwerp_id) references onderwerpen(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'competentie_specialisten_competentie_fk') then
+    alter table competentie_specialisten add constraint competentie_specialisten_competentie_fk foreign key (competentie_id) references kerncompetenties(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'competentie_specialisten_specialist_fk') then
+    alter table competentie_specialisten add constraint competentie_specialisten_specialist_fk foreign key (specialist_id) references specialisten(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'specialist_gesprekken_onboarder_fk') then
+    alter table specialist_gesprekken add constraint specialist_gesprekken_onboarder_fk foreign key (onboarder_id) references onboarders(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'specialist_gesprekken_competentie_fk') then
+    alter table specialist_gesprekken add constraint specialist_gesprekken_competentie_fk foreign key (competentie_id) references kerncompetenties(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'specialist_gesprekken_specialist_fk') then
+    alter table specialist_gesprekken add constraint specialist_gesprekken_specialist_fk foreign key (specialist_id) references specialisten(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'verwachtingsniveaus_mijlpaal_fk') then
+    alter table verwachtingsniveaus add constraint verwachtingsniveaus_mijlpaal_fk foreign key (mijlpaal_id) references mijlpalen(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'verwachtingsniveaus_onderwerp_fk') then
+    alter table verwachtingsniveaus add constraint verwachtingsniveaus_onderwerp_fk foreign key (onderwerp_id) references onderwerpen(id);
+  end if;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────
 -- 2. Hulpfuncties (rol/onboarder van de ingelogde gebruiker)
@@ -161,6 +192,7 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_populate_niveau_stand on onboarders;
 create trigger trg_populate_niveau_stand
   after insert on onboarders
   for each row execute function populate_niveau_stand();
@@ -180,6 +212,7 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_log_niveau_wijziging on niveau_stand;
 create trigger trg_log_niveau_wijziging
   after update on niveau_stand
   for each row execute function log_niveau_wijziging();
@@ -203,47 +236,75 @@ alter table mijlpalen enable row level security;
 alter table verwachtingsniveaus enable row level security;
 
 -- Mentor: volledige rechten op alle tabellen.
+drop policy if exists mentor_all_vestigingen on vestigingen;
 create policy mentor_all_vestigingen on vestigingen for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_gebruikers on gebruikers;
 create policy mentor_all_gebruikers on gebruikers for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_onboarders on onboarders;
 create policy mentor_all_onboarders on onboarders for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_onderwerpen on onderwerpen;
 create policy mentor_all_onderwerpen on onderwerpen for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_niveau_labels on niveau_labels;
 create policy mentor_all_niveau_labels on niveau_labels for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_niveau_stand on niveau_stand;
 create policy mentor_all_niveau_stand on niveau_stand for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_logboek on logboek;
 create policy mentor_all_logboek on logboek for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_opmerkingen on opmerkingen;
 create policy mentor_all_opmerkingen on opmerkingen for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_kerncompetenties on kerncompetenties;
 create policy mentor_all_kerncompetenties on kerncompetenties for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_specialisten on specialisten;
 create policy mentor_all_specialisten on specialisten for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_competentie_specialisten on competentie_specialisten;
 create policy mentor_all_competentie_specialisten on competentie_specialisten for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_specialist_gesprekken on specialist_gesprekken;
 create policy mentor_all_specialist_gesprekken on specialist_gesprekken for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_mijlpalen on mijlpalen;
 create policy mentor_all_mijlpalen on mijlpalen for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_verwachtingsniveaus on verwachtingsniveaus;
 create policy mentor_all_verwachtingsniveaus on verwachtingsniveaus for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 
 -- Referentiedata: iedereen die ingelogd is mag lezen.
+drop policy if exists select_vestigingen on vestigingen;
 create policy select_vestigingen on vestigingen for select using (auth.uid() is not null);
+drop policy if exists select_onderwerpen on onderwerpen;
 create policy select_onderwerpen on onderwerpen for select using (auth.uid() is not null);
+drop policy if exists select_niveau_labels on niveau_labels;
 create policy select_niveau_labels on niveau_labels for select using (auth.uid() is not null);
+drop policy if exists select_mijlpalen on mijlpalen;
 create policy select_mijlpalen on mijlpalen for select using (auth.uid() is not null);
+drop policy if exists select_kerncompetenties on kerncompetenties;
 create policy select_kerncompetenties on kerncompetenties for select using (auth.uid() is not null);
+drop policy if exists select_specialisten on specialisten;
 create policy select_specialisten on specialisten for select using (auth.uid() is not null);
+drop policy if exists select_competentie_specialisten on competentie_specialisten;
 create policy select_competentie_specialisten on competentie_specialisten for select using (auth.uid() is not null);
+drop policy if exists select_verwachtingsniveaus on verwachtingsniveaus;
 create policy select_verwachtingsniveaus on verwachtingsniveaus for select using (auth.uid() is not null);
 
 -- gebruikers: eigen rij, of alles zien als vm/mentor.
+drop policy if exists select_gebruikers on gebruikers;
 create policy select_gebruikers on gebruikers for select
   using (id = auth.uid() or auth_rol() in ('vm', 'mentor'));
 
--- onboarders: medewerker ziet alleen zichzelf, vm/mentor zien iedereen (select_ policy voor vm; mentor_all dekt mentor al).
+-- onboarders: medewerker ziet alleen zichzelf, vm/mentor zien iedereen (mentor_all dekt mentor al).
+drop policy if exists select_onboarders_zelf on onboarders;
 create policy select_onboarders_zelf on onboarders for select
   using (gebruiker_id = auth.uid());
+drop policy if exists select_onboarders_vm on onboarders;
 create policy select_onboarders_vm on onboarders for select
   using (auth_rol() = 'vm');
 
 -- niveau_stand
+drop policy if exists select_niveau_stand_zelf on niveau_stand;
 create policy select_niveau_stand_zelf on niveau_stand for select
   using (onboarder_id = auth_onboarder_id());
+drop policy if exists select_niveau_stand_vm on niveau_stand;
 create policy select_niveau_stand_vm on niveau_stand for select
   using (auth_rol() = 'vm');
 
+drop policy if exists medewerker_update_niveau_stand on niveau_stand;
 create policy medewerker_update_niveau_stand on niveau_stand for update
   using (
     auth_rol() = 'medewerker'
@@ -260,63 +321,80 @@ create policy medewerker_update_niveau_stand on niveau_stand for update
     )
   );
 
+drop policy if exists vm_update_niveau_stand on niveau_stand;
 create policy vm_update_niveau_stand on niveau_stand for update
   using (auth_rol() = 'vm')
   with check (auth_rol() = 'vm' and bijgewerkt_door = auth.uid());
 
 -- logboek: alleen lezen (schrijven gaat via de trigger, die security definer draait).
+drop policy if exists select_logboek_zelf on logboek;
 create policy select_logboek_zelf on logboek for select
   using (onboarder_id = auth_onboarder_id());
+drop policy if exists select_logboek_vm on logboek;
 create policy select_logboek_vm on logboek for select
   using (auth_rol() = 'vm');
 
 -- opmerkingen
+drop policy if exists select_opmerkingen_zelf on opmerkingen;
 create policy select_opmerkingen_zelf on opmerkingen for select
   using (onboarder_id = auth_onboarder_id());
+drop policy if exists select_opmerkingen_vm on opmerkingen;
 create policy select_opmerkingen_vm on opmerkingen for select
   using (auth_rol() = 'vm');
 
+drop policy if exists insert_opmerkingen_zelf on opmerkingen;
 create policy insert_opmerkingen_zelf on opmerkingen for insert
   with check (onboarder_id = auth_onboarder_id() and door_gebruiker = auth.uid());
+drop policy if exists insert_opmerkingen_vm on opmerkingen;
 create policy insert_opmerkingen_vm on opmerkingen for insert
   with check (auth_rol() = 'vm' and door_gebruiker = auth.uid());
 
 -- specialist_gesprekken: medewerker beheert die van zichzelf, vm leest/wijzigt alles.
+drop policy if exists select_gesprekken_zelf on specialist_gesprekken;
 create policy select_gesprekken_zelf on specialist_gesprekken for select
   using (onboarder_id = auth_onboarder_id());
+drop policy if exists select_gesprekken_vm on specialist_gesprekken;
 create policy select_gesprekken_vm on specialist_gesprekken for select
   using (auth_rol() = 'vm');
 
+drop policy if exists insert_gesprekken_zelf on specialist_gesprekken;
 create policy insert_gesprekken_zelf on specialist_gesprekken for insert
   with check (onboarder_id = auth_onboarder_id() and bijgewerkt_door = auth.uid());
+drop policy if exists update_gesprekken_zelf on specialist_gesprekken;
 create policy update_gesprekken_zelf on specialist_gesprekken for update
   using (onboarder_id = auth_onboarder_id())
   with check (onboarder_id = auth_onboarder_id() and bijgewerkt_door = auth.uid());
 
+drop policy if exists insert_gesprekken_vm on specialist_gesprekken;
 create policy insert_gesprekken_vm on specialist_gesprekken for insert
   with check (auth_rol() = 'vm' and bijgewerkt_door = auth.uid());
+drop policy if exists update_gesprekken_vm on specialist_gesprekken;
 create policy update_gesprekken_vm on specialist_gesprekken for update
   using (auth_rol() = 'vm')
   with check (auth_rol() = 'vm' and bijgewerkt_door = auth.uid());
 
 -- ─────────────────────────────────────────────────────────────
--- 5. Seed-data
+-- 5. Seed-data — per rij toegevoegd, alleen als die rij (op naam) nog niet bestaat.
+-- Werkt dus ook als de tabel al (verkeerde) data van eerder bevat.
 -- ─────────────────────────────────────────────────────────────
 
-insert into vestigingen (naam) values ('Sittard'), ('Weert'), ('Zuid');
+insert into vestigingen (naam)
+select v.naam from (values ('Sittard'), ('Weert'), ('Zuid')) as v(naam)
+where not exists (select 1 from vestigingen x where x.naam = v.naam);
 
-insert into niveau_labels (niveau, label) values
-  (0, 'Nog niet gestart'),
-  (1, 'Doorgenomen'),
-  (2, 'Begrijpt'),
-  (3, 'Kan toepassen'),
-  (4, 'Beheerst');
+insert into niveau_labels (niveau, label)
+select v.niveau, v.label from (values
+  (0, 'Nog niet gestart'), (1, 'Doorgenomen'), (2, 'Begrijpt'), (3, 'Kan toepassen'), (4, 'Beheerst')
+) as v(niveau, label)
+where not exists (select 1 from niveau_labels x where x.niveau = v.niveau);
 
-insert into mijlpalen (naam, dag) values
-  ('Proeftijd', 30),
-  ('Eindevaluatie', 100);
+insert into mijlpalen (naam, dag)
+select v.naam, v.dag from (values ('Proeftijd', 30), ('Eindevaluatie', 100)) as v(naam, dag)
+where not exists (select 1 from mijlpalen x where x.naam = v.naam);
 
-insert into onderwerpen (naam, categorie, type, max_niveau, aanspreekpunt, welder_link, criterium_3, criterium_4, training_verplicht, volgorde) values
+insert into onderwerpen (naam, categorie, type, max_niveau, aanspreekpunt, welder_link, criterium_3, criterium_4, training_verplicht, volgorde)
+select v.naam, v.categorie, v.type, v.max_niveau, v.aanspreekpunt, v.welder_link, v.criterium_3, v.criterium_4, v.training_verplicht, v.volgorde
+from (values
   ('Missie, visie en kernwaarden', 'SOMA DNA', 'kennis', 4, 'Yvo', 'https://somaworks.welder.cloud/v2/content/169778/view/169778', 'Laat de kernwaarden zien in zijn gesprekken met kandidaten, klanten en collega''s.', 'Ademt onze manier van werken, ook onder druk.', false, 10),
   ('SOMA Group | alle labels', 'SOMA DNA', 'kennis', 4, 'Denis', 'https://somaworks.welder.cloud/v2/content/169777/view/169777', 'Verwijst kandidaten en klanten door naar het juiste label, en legt uit waarom.', 'Herkent wanneer iets bij een ander label hoort en zet het daar neer, zonder dat iemand hem eraan herinnert.', false, 20),
   ('Terug naar de basis', 'SOMA DNA', 'kennis', 4, 'Dave', 'https://somaworks.welder.cloud/v2/content/170812/view/170812', 'Pakt op wat binnenkomt en handelt het zo snel mogelijk af.', 'Kiest zelf waar de meeste kans zit en legt alles opzij om die plaatsing te pakken.', false, 30),
@@ -347,20 +425,23 @@ insert into onderwerpen (naam, categorie, type, max_niveau, aanspreekpunt, welde
 
   ('Relatiebeheer', 'Relatiebeheer', 'vaardigheid', 4, 'VM', 'https://somaworks.welder.cloud/v2/content/169783/view/169783', 'Belt zijn klanten ook zonder aanleiding, en legt vast wat hij hoort.', 'Houdt zijn klanten structureel warm, ook als het even niets oplevert.', false, 240),
   ('Kandidaatbeheer', 'Relatiebeheer', 'vaardigheid', 4, 'VM', 'https://somaworks.welder.cloud/v2/content/169784/view/169784', 'Houdt contact met zijn kandidaten en volgt op wat hij afspreekt.', 'Haalt uit dat contact wat er op de werkvloer speelt, en doet daar iets mee.', false, 250),
-  ('Nazorg', 'Relatiebeheer', 'vaardigheid', 4, 'Yvo', 'https://somaworks.welder.cloud/v2/content/169785/view/169785', 'Belt voor de start, neemt de belangrijkste punten door en belt na de eerste werkdag na.', 'Doet dat bij elke plaatsing, ook als het druk is.', false, 260);
+  ('Nazorg', 'Relatiebeheer', 'vaardigheid', 4, 'Yvo', 'https://somaworks.welder.cloud/v2/content/169785/view/169785', 'Belt voor de start, neemt de belangrijkste punten door en belt na de eerste werkdag na.', 'Doet dat bij elke plaatsing, ook als het druk is.', false, 260)
+) as v(naam, categorie, type, max_niveau, aanspreekpunt, welder_link, criterium_3, criterium_4, training_verplicht, volgorde)
+where not exists (select 1 from onderwerpen x where x.naam = v.naam);
 
-insert into kerncompetenties (naam, volgorde) values
-  ('Aanpassingsvermogen', 10),
-  ('Commercialiteit', 20),
-  ('Creativiteit', 30),
-  ('Empathie', 40),
-  ('Drive', 50),
-  ('Kwaliteitsgerichtheid', 60),
-  ('Overtuigingskracht', 70);
+insert into kerncompetenties (naam, volgorde)
+select v.naam, v.volgorde from (values
+  ('Aanpassingsvermogen', 10), ('Commercialiteit', 20), ('Creativiteit', 30), ('Empathie', 40),
+  ('Drive', 50), ('Kwaliteitsgerichtheid', 60), ('Overtuigingskracht', 70)
+) as v(naam, volgorde)
+where not exists (select 1 from kerncompetenties x where x.naam = v.naam);
 
-insert into specialisten (naam) values
+insert into specialisten (naam)
+select v.naam from (values
   ('Tom Meyer'), ('Enzio Brouner'), ('Ralph van Tilborg'), ('Liberto'),
-  ('Aim Gruisen'), ('Ralph Keulen'), ('Max Trebus');
+  ('Aim Gruisen'), ('Ralph Keulen'), ('Max Trebus')
+) as v(naam)
+where not exists (select 1 from specialisten x where x.naam = v.naam);
 
 insert into competentie_specialisten (competentie_id, specialist_id)
 select k.id, s.id from kerncompetenties k, specialisten s
@@ -372,4 +453,7 @@ where (k.naam, s.naam) in (
   ('Drive', 'Tom Meyer'), ('Drive', 'Ralph Keulen'), ('Drive', 'Aim Gruisen'), ('Drive', 'Liberto'),
   ('Kwaliteitsgerichtheid', 'Max Trebus'),
   ('Overtuigingskracht', 'Tom Meyer'), ('Overtuigingskracht', 'Ralph van Tilborg')
+)
+and not exists (
+  select 1 from competentie_specialisten x where x.competentie_id = k.id and x.specialist_id = s.id
 );

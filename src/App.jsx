@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { C } from "./theme";
 import LoginScreen from "./LoginScreen.jsx";
+import Dashboard from "./Dashboard.jsx";
 
 export default function App() {
   const [sessie, setSessie] = useState(undefined); // undefined = nog aan het laden
@@ -66,20 +67,24 @@ export default function App() {
   }
 
   return (
-    <VolledigScherm>
-      <div style={{ maxWidth: 320, textAlign: "center" }}>
-        <div style={{ color: C.group, fontWeight: 700, fontSize: 20, marginBottom: 4 }}>
-          Welkom, {gebruiker.naam}
-        </div>
-        <div style={{ color: C.soft, marginBottom: 24 }}>
-          Ingelogd als <strong>{gebruiker.rol}</strong>
-        </div>
-        <p style={{ color: C.soft, fontSize: 14 }}>
-          Het inloggen werkt. De rest van het dashboard bouwen we in de volgende stappen.
-        </p>
-        <UitloggenKnop />
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif" }}>
+      <div
+        style={{
+          maxWidth: 480,
+          margin: "0 auto",
+          padding: "12px 16px 0",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ color: C.group, fontWeight: 700 }}>SOMA</span>
+        <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: C.soft, fontSize: 13, cursor: "pointer" }}>
+          Uitloggen ({gebruiker.naam})
+        </button>
       </div>
-    </VolledigScherm>
+      <Dashboard gebruiker={gebruiker} />
+    </div>
   );
 }
 
