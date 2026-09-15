@@ -220,6 +220,16 @@ export default function Dashboard({ gebruiker }) {
     return { ok: true };
   }
 
+  async function verversLogboek(onboarderId) {
+    const { data, error } = await supabase.from("logboek").select("*").eq("onboarder_id", onboarderId);
+    if (error) return;
+    setLogboek((huidig) => {
+      const kopie = new Map(huidig);
+      kopie.set(onboarderId, data);
+      return kopie;
+    });
+  }
+
   async function wijzigGesprekStatus(onboarder, competentieId, specialistId, huidigeStatus) {
     if (huidigeStatus === "gevoerd") {
       const { error } = await supabase
@@ -235,6 +245,7 @@ export default function Dashboard({ gebruiker }) {
         kopie.set(onboarder.id, lijst);
         return kopie;
       });
+      verversLogboek(onboarder.id);
       return { ok: true };
     }
 
@@ -261,6 +272,7 @@ export default function Dashboard({ gebruiker }) {
       kopie.set(onboarder.id, lijst);
       return kopie;
     });
+    verversLogboek(onboarder.id);
     return { ok: true };
   }
 
