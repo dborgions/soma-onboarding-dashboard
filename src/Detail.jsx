@@ -105,7 +105,7 @@ export default function Detail({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 16 }}>
-        <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+        <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", minWidth: 0 }}>
           <div style={{ fontWeight: 700, color: C.group, fontSize: 18 }}>{onboarder.naam}</div>
           <div style={{ fontSize: 12, color: C.soft }}>{onboarder.vestigingen?.naam}</div>
           <Tijdlijn dag={dag} programmaDagen={onboarder.programma_dagen} mijlpalen={mijlpalen} />
@@ -162,9 +162,9 @@ export default function Detail({
           if (items.length === 0) return null;
           const pctFase = percentageVoorFase(standMap, onderwerpen, fase.id);
           return (
-            <details key={fase.id} style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${fase.kleur}` }}>
+            <details key={fase.id} style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${fase.kleur}`, minWidth: 0 }}>
               <summary style={{ padding: "12px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, color: C.group }}>{fase.label}</div>
                   <div style={{ fontSize: 12, color: C.soft, fontWeight: 400 }}>{fase.sub}</div>
                 </div>

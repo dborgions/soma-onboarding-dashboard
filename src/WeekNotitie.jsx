@@ -10,8 +10,8 @@ export default function WeekNotitie({ magBewerken, tekst, laatsteDrie, onOpslaan
   }, [tekst]);
 
   return (
-    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 6 }}>
         <div style={{ fontWeight: 700, color: C.group, marginBottom: 8 }}>Notitie deze week</div>
         {opgeslagen && <span style={{ fontSize: 11, color: C.green }}>Opgeslagen ✓</span>}
       </div>

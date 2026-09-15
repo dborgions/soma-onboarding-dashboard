@@ -14,8 +14,8 @@ export default function WeekSectie({ magBewerken, cijfers, onOpslaan, plaatsingK
   const gemiddelde = (totaal / VELDEN.length).toFixed(1);
 
   return (
-    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div style={{ fontWeight: 700, color: C.group }}>Deze week</div>
         {magBewerken && (
           <button

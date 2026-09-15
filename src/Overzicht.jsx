@@ -31,6 +31,9 @@ export default function Overzicht({ onboarders, onderwerpen, niveauStand, gespre
                 padding: 16,
                 boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
                 cursor: "pointer",
+                minWidth: 0,
+                width: "100%",
+                boxSizing: "border-box",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
