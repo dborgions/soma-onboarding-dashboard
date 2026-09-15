@@ -198,11 +198,16 @@ create trigger trg_populate_niveau_stand
   for each row execute function populate_niveau_stand();
 
 -- Bij elke niveauwijziging: automatisch een logregel wegschrijven.
+-- (behalve als app.suppress_log aan staat — dat gebruikt undo_niveau_wijziging
+-- om een "toch niet" binnen de eerste seconden echt te laten verdwijnen.)
 create or replace function log_niveau_wijziging() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
   v_startdatum date;
 begin
+  if current_setting('app.suppress_log', true) = 'true' then
+    return new;
+  end if;
   if new.niveau is distinct from old.niveau then
     select startdatum into v_startdatum from onboarders where id = new.onboarder_id;
     insert into logboek (onboarder_id, onderwerp_id, van_niveau, naar_niveau, door_gebruiker, programmadag)
@@ -212,10 +217,49 @@ begin
 end;
 $$;
 
+-- Ruim een gelijknamige trigger uit een eerdere/oudere versie op, zodat een
+-- niveauwijziging niet twee keer gelogd wordt.
+drop trigger if exists trg_log_niveau on niveau_stand;
+
 drop trigger if exists trg_log_niveau_wijziging on niveau_stand;
 create trigger trg_log_niveau_wijziging
   after update on niveau_stand
   for each row execute function log_niveau_wijziging();
+
+-- "Toch niet": binnen 30 seconden na een wijziging kan de logregel weer
+-- verdwijnen, alsof de wijziging niet gebeurd is (bouwplan hoofdstuk 14).
+-- Herhaalt dezelfde rechtencontrole als de RLS-policies hierboven, want deze
+-- functie draait met verhoogde rechten (security definer) om de logregel
+-- te mogen verwijderen.
+create or replace function undo_niveau_wijziging(p_onboarder_id uuid, p_onderwerp_id uuid, p_terug_naar int)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_rol text := auth_rol();
+  v_eigen_onboarder uuid := auth_onboarder_id();
+begin
+  if v_rol = 'medewerker' then
+    if p_onboarder_id is distinct from v_eigen_onboarder or p_terug_naar > 1 then
+      raise exception 'Niet toegestaan';
+    end if;
+  elsif v_rol not in ('vm', 'mentor') then
+    raise exception 'Niet toegestaan';
+  end if;
+
+  delete from logboek
+  where onboarder_id = p_onboarder_id
+    and onderwerp_id = p_onderwerp_id
+    and door_gebruiker = auth.uid()
+    and tijdstip > now() - interval '30 seconds';
+
+  perform set_config('app.suppress_log', 'true', true);
+  update niveau_stand
+  set niveau = p_terug_naar, bijgewerkt_op = now(), bijgewerkt_door = auth.uid()
+  where onboarder_id = p_onboarder_id and onderwerp_id = p_onderwerp_id;
+  perform set_config('app.suppress_log', 'false', true);
+end;
+$$;
+
+grant execute on function undo_niveau_wijziging(uuid, uuid, int) to authenticated;
 
 -- ─────────────────────────────────────────────────────────────
 -- 4. Row level security
@@ -283,10 +327,12 @@ create policy select_competentie_specialisten on competentie_specialisten for se
 drop policy if exists select_verwachtingsniveaus on verwachtingsniveaus;
 create policy select_verwachtingsniveaus on verwachtingsniveaus for select using (auth.uid() is not null);
 
--- gebruikers: eigen rij, of alles zien als vm/mentor.
+-- gebruikers: naam/rol van collega's is niet gevoelig binnen SOMA, dus elke
+-- ingelogde gebruiker mag de lijst lezen (nodig om "door wie" te kunnen tonen
+-- in het logboek en bij opmerkingen).
 drop policy if exists select_gebruikers on gebruikers;
 create policy select_gebruikers on gebruikers for select
-  using (id = auth.uid() or auth_rol() in ('vm', 'mentor'));
+  using (auth.uid() is not null);
 
 -- onboarders: medewerker ziet alleen zichzelf, vm/mentor zien iedereen (mentor_all dekt mentor al).
 drop policy if exists select_onboarders_zelf on onboarders;

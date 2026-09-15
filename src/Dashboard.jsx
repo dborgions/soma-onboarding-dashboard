@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import { C } from "./theme";
 import Overzicht from "./Overzicht.jsx";
 import Detail from "./Detail.jsx";
+import { programmadag } from "./lib/berekeningen.js";
 
 export default function Dashboard({ gebruiker }) {
   const [laden, setLaden] = useState(true);
@@ -14,10 +15,32 @@ export default function Dashboard({ gebruiker }) {
   const [totaalKoppelingen, setTotaalKoppelingen] = useState(0);
   const [mijlpalen, setMijlpalen] = useState([]);
   const [niveauLabels, setNiveauLabels] = useState(new Map());
+  const [opmerkingen, setOpmerkingen] = useState(new Map()); // onboarder_id -> [opmerking, ...]
+  const [logboek, setLogboek] = useState(new Map()); // onboarder_id -> [logregel, ...]
+  const [gebruikersNaam, setGebruikersNaam] = useState(new Map()); // gebruiker_id -> naam
   const [geselecteerd, setGeselecteerd] = useState(null);
 
   useEffect(() => {
     laadAlles();
+  }, []);
+
+  // Wijzigingen in niveau_stand direct zichtbaar bij alle ingelogde gebruikers (bouwplan hoofdstuk 2).
+  useEffect(() => {
+    const channel = supabase
+      .channel("niveau_stand_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "niveau_stand" }, (payload) => {
+        const rij = payload.new;
+        if (!rij) return;
+        setNiveauStand((huidig) => {
+          const kopie = new Map(huidig);
+          const perOnboarder = new Map(kopie.get(rij.onboarder_id) || []);
+          perOnboarder.set(rij.onderwerp_id, rij.niveau);
+          kopie.set(rij.onboarder_id, perOnboarder);
+          return kopie;
+        });
+      })
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }, []);
 
   async function laadAlles() {
@@ -31,6 +54,9 @@ export default function Dashboard({ gebruiker }) {
       { data: koppelingenData, error: eKoppelingen },
       { data: mijlpalenData, error: eMijlpalen },
       { data: labelsData, error: eLabels },
+      { data: opmerkingenData, error: eOpmerkingen },
+      { data: logboekData, error: eLogboek },
+      { data: gebruikersData, error: eGebruikers },
     ] = await Promise.all([
       supabase.from("onboarders").select("id, naam, startdatum, programma_dagen, vestiging_id, vestigingen(naam)").eq("actief", true),
       supabase.from("onderwerpen").select("*").eq("actief", true).order("volgorde"),
@@ -39,35 +65,105 @@ export default function Dashboard({ gebruiker }) {
       supabase.from("competentie_specialisten").select("*", { count: "exact", head: true }),
       supabase.from("mijlpalen").select("id, naam, dag").order("dag"),
       supabase.from("niveau_labels").select("niveau, label"),
+      supabase.from("opmerkingen").select("*").order("tijdstip"),
+      supabase.from("logboek").select("*"),
+      supabase.from("gebruikers").select("id, naam"),
     ]);
 
-    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels;
+    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers;
     if (eerste) {
       setFout("Het laden van de gegevens is niet gelukt: " + eerste.message);
       setLaden(false);
       return;
     }
 
-    const standMap = new Map();
-    for (const rij of standData) {
-      if (!standMap.has(rij.onboarder_id)) standMap.set(rij.onboarder_id, new Map());
-      standMap.get(rij.onboarder_id).set(rij.onderwerp_id, rij.niveau);
-    }
-
-    const gesprekkenMap = new Map();
-    for (const rij of gesprekkenData) {
-      if (!gesprekkenMap.has(rij.onboarder_id)) gesprekkenMap.set(rij.onboarder_id, []);
-      gesprekkenMap.get(rij.onboarder_id).push(rij);
-    }
-
     setOnboarders(onboardersData);
     setOnderwerpen(onderwerpenData);
-    setNiveauStand(standMap);
-    setGesprekken(gesprekkenMap);
+    setNiveauStand(groepeerPerOnboarder(standData, (r) => r.onderwerp_id, (r) => r.niveau));
+    setGesprekken(groepeerLijstPerOnboarder(gesprekkenData));
     setTotaalKoppelingen(koppelingenData?.length ?? 0);
     setMijlpalen(mijlpalenData);
     setNiveauLabels(new Map(labelsData.map((l) => [l.niveau, l.label])));
+    setOpmerkingen(groepeerLijstPerOnboarder(opmerkingenData));
+    setLogboek(groepeerLijstPerOnboarder(logboekData));
+    setGebruikersNaam(new Map(gebruikersData.map((g) => [g.id, g.naam])));
     setLaden(false);
+  }
+
+  function groepeerPerOnboarder(rijen, sleutelFn, waardeFn) {
+    const map = new Map();
+    for (const rij of rijen) {
+      if (!map.has(rij.onboarder_id)) map.set(rij.onboarder_id, new Map());
+      map.get(rij.onboarder_id).set(sleutelFn(rij), waardeFn(rij));
+    }
+    return map;
+  }
+
+  function groepeerLijstPerOnboarder(rijen) {
+    const map = new Map();
+    for (const rij of rijen) {
+      if (!map.has(rij.onboarder_id)) map.set(rij.onboarder_id, []);
+      map.get(rij.onboarder_id).push(rij);
+    }
+    return map;
+  }
+
+  async function updateNiveau(onboarderId, onderwerpId, nieuweNiveau) {
+    const { error } = await supabase
+      .from("niveau_stand")
+      .update({ niveau: nieuweNiveau, bijgewerkt_door: gebruiker.id })
+      .eq("onboarder_id", onboarderId)
+      .eq("onderwerp_id", onderwerpId);
+    if (error) return { ok: false, fout: error.message };
+    setNiveauStand((huidig) => {
+      const kopie = new Map(huidig);
+      const perOnboarder = new Map(kopie.get(onboarderId) || []);
+      perOnboarder.set(onderwerpId, nieuweNiveau);
+      kopie.set(onboarderId, perOnboarder);
+      return kopie;
+    });
+    return { ok: true };
+  }
+
+  async function undoNiveau(onboarderId, onderwerpId, terugNaar) {
+    const { error } = await supabase.rpc("undo_niveau_wijziging", {
+      p_onboarder_id: onboarderId,
+      p_onderwerp_id: onderwerpId,
+      p_terug_naar: terugNaar,
+    });
+    if (error) return { ok: false, fout: error.message };
+    setNiveauStand((huidig) => {
+      const kopie = new Map(huidig);
+      const perOnboarder = new Map(kopie.get(onboarderId) || []);
+      perOnboarder.set(onderwerpId, terugNaar);
+      kopie.set(onboarderId, perOnboarder);
+      return kopie;
+    });
+    setLogboek((huidig) => {
+      const kopie = new Map(huidig);
+      const lijst = (kopie.get(onboarderId) || []).filter(
+        (r) => !(r.onderwerp_id === onderwerpId && r.door_gebruiker === gebruiker.id && Date.now() - new Date(r.tijdstip).getTime() < 30000)
+      );
+      kopie.set(onboarderId, lijst);
+      return kopie;
+    });
+    return { ok: true };
+  }
+
+  async function voegOpmerkingToe(onboarder, onderwerpId, tekst) {
+    const dag = programmadag(onboarder.startdatum);
+    const { data, error } = await supabase
+      .from("opmerkingen")
+      .insert({ onboarder_id: onboarder.id, onderwerp_id: onderwerpId, door_gebruiker: gebruiker.id, programmadag: dag, tekst })
+      .select()
+      .single();
+    if (error) return { ok: false, fout: error.message };
+    setOpmerkingen((huidig) => {
+      const kopie = new Map(huidig);
+      kopie.set(onboarder.id, [...(kopie.get(onboarder.id) || []), data]);
+      return kopie;
+    });
+    return { ok: true };
   }
 
   if (laden) {
@@ -77,6 +173,17 @@ export default function Dashboard({ gebruiker }) {
   if (fout) {
     return <Midden><span style={{ color: "#c0392b" }}>{fout}</span></Midden>;
   }
+
+  const gedeeld = {
+    gebruiker,
+    onderwerpen,
+    niveauLabels,
+    mijlpalen,
+    gebruikersNaam,
+    updateNiveau,
+    undoNiveau,
+    voegOpmerkingToe,
+  };
 
   // Medewerker ziet altijd meteen zijn eigen dossier (bouwplan 7.4); RLS levert hem toch maar 1 rij.
   if (gebruiker.rol === "medewerker") {
@@ -92,11 +199,11 @@ export default function Dashboard({ gebruiker }) {
     }
     return (
       <Detail
+        {...gedeeld}
         onboarder={eigenOnboarder}
-        onderwerpen={onderwerpen}
         standMap={niveauStand.get(eigenOnboarder.id) || new Map()}
-        niveauLabels={niveauLabels}
-        mijlpalen={mijlpalen}
+        opmerkingenLijst={opmerkingen.get(eigenOnboarder.id) || []}
+        logboekLijst={logboek.get(eigenOnboarder.id) || []}
       />
     );
   }
@@ -106,11 +213,11 @@ export default function Dashboard({ gebruiker }) {
     const onboarder = onboarders.find((o) => o.id === geselecteerd);
     return (
       <Detail
+        {...gedeeld}
         onboarder={onboarder}
-        onderwerpen={onderwerpen}
         standMap={niveauStand.get(onboarder.id) || new Map()}
-        niveauLabels={niveauLabels}
-        mijlpalen={mijlpalen}
+        opmerkingenLijst={opmerkingen.get(onboarder.id) || []}
+        logboekLijst={logboek.get(onboarder.id) || []}
         terug={() => setGeselecteerd(null)}
       />
     );

@@ -1,11 +1,36 @@
+import { useState } from "react";
 import { C } from "./theme";
 import Tijdlijn from "./Tijdlijn.jsx";
 import Voortgangsbalk from "./Voortgangsbalk.jsx";
+import Bolletjes from "./Bolletjes.jsx";
+import BevestigingsVenster from "./BevestigingsVenster.jsx";
+import Toast from "./Toast.jsx";
+import Opmerkingen from "./Opmerkingen.jsx";
+import Logboek from "./Logboek.jsx";
 import { programmadag, percentageVoorType } from "./lib/berekeningen.js";
+import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
 
 const CATEGORIE_KLEUREN = [C.group, C.works, "#2c9c8f", C.accent, C.green, "#9b5bb5"];
 
-export default function Detail({ onboarder, onderwerpen, standMap, niveauLabels, mijlpalen, terug }) {
+export default function Detail({
+  onboarder,
+  onderwerpen,
+  standMap,
+  niveauLabels,
+  mijlpalen,
+  gebruiker,
+  gebruikersNaam,
+  opmerkingenLijst,
+  logboekLijst,
+  updateNiveau,
+  undoNiveau,
+  voegOpmerkingToe,
+  terug,
+}) {
+  const [bevestiging, setBevestiging] = useState(null); // { onderwerp, nieuweNiveau }
+  const [toast, setToast] = useState(null); // { onderwerpId, vanNiveau, naarNiveau, tekst }
+  const [criteriaTonen, setCriteriaTonen] = useState(null); // onderwerp id
+
   const dag = programmadag(onboarder.startdatum);
   const kennis = percentageVoorType(standMap, onderwerpen, "kennis");
   const vaardigheden = percentageVoorType(standMap, onderwerpen, "vaardigheid");
@@ -15,8 +40,35 @@ export default function Detail({ onboarder, onderwerpen, standMap, niveauLabels,
     if (!categorieen.includes(o.categorie)) categorieen.push(o.categorie);
   }
 
+  async function verwerkTik(onderwerp, huidigeNiveau, getikt) {
+    const nieuweNiveau = getikt === huidigeNiveau ? huidigeNiveau - 1 : getikt;
+    if (heeftBevestigingNodig(onderwerp, huidigeNiveau, nieuweNiveau)) {
+      setBevestiging({ onderwerp, huidigeNiveau, nieuweNiveau });
+      return;
+    }
+    await pasNiveauToe(onderwerp, huidigeNiveau, nieuweNiveau);
+  }
+
+  async function pasNiveauToe(onderwerp, huidigeNiveau, nieuweNiveau) {
+    const resultaat = await updateNiveau(onboarder.id, onderwerp.id, nieuweNiveau);
+    if (resultaat.ok) {
+      setToast({
+        onderwerpId: onderwerp.id,
+        vanNiveau: huidigeNiveau,
+        naarNiveau: nieuweNiveau,
+        tekst: `${onderwerp.naam}: ${niveauLabels.get(nieuweNiveau)}`,
+      });
+    }
+  }
+
+  async function tochNiet() {
+    if (!toast) return;
+    await undoNiveau(onboarder.id, toast.onderwerpId, toast.vanNiveau);
+    setToast(null);
+  }
+
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
+    <div style={{ maxWidth: 480, margin: "0 auto", padding: 16, paddingBottom: 60 }}>
       {terug && (
         <button onClick={terug} style={terugKnopStijl}>
           &larr; Terug naar overzicht
@@ -31,7 +83,13 @@ export default function Detail({ onboarder, onderwerpen, standMap, niveauLabels,
         <Voortgangsbalk label="Vaardigheden" percentage={vaardigheden} kleur={C.accent} />
       </div>
 
-      <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      {gebruiker.rol === "medewerker" && (
+        <div style={{ fontSize: 12, color: C.soft, marginTop: 12, padding: "8px 12px", background: "#eef2f8", borderRadius: 10 }}>
+          Stap 1 vink je zelf af. Vanaf stap 2 toon je het aan je VM of mentor.
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
         {categorieen.map((cat, i) => {
           const items = onderwerpen.filter((o) => o.categorie === cat);
           const kleur = CATEGORIE_KLEUREN[i % CATEGORIE_KLEUREN.length];
@@ -40,21 +98,57 @@ export default function Detail({ onboarder, onderwerpen, standMap, niveauLabels,
               <summary style={{ padding: "12px 16px", fontWeight: 600, color: C.group, cursor: "pointer" }}>
                 {cat}
               </summary>
-              <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {items.map((o) => (
-                  <OnderwerpRegel key={o.id} onderwerp={o} niveau={standMap.get(o.id) || 0} label={niveauLabels.get(standMap.get(o.id) || 0)} />
-                ))}
+              <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 14 }}>
+                {items.map((o) => {
+                  const huidigeNiveau = standMap.get(o.id) || 0;
+                  return (
+                    <OnderwerpRegel
+                      key={o.id}
+                      onderwerp={o}
+                      niveau={huidigeNiveau}
+                      label={niveauLabels.get(huidigeNiveau)}
+                      gebruiker={gebruiker}
+                      onTik={(n) => verwerkTik(o, huidigeNiveau, n)}
+                      criteriaOpen={criteriaTonen === o.id}
+                      onToggleCriteria={() => setCriteriaTonen(criteriaTonen === o.id ? null : o.id)}
+                      opmerkingen={opmerkingenLijst.filter((op) => op.onderwerp_id === o.id)}
+                      gebruikersNaam={gebruikersNaam}
+                      onOpmerkingToevoegen={(tekst) => voegOpmerkingToe(onboarder, o.id, tekst)}
+                    />
+                  );
+                })}
               </div>
             </details>
           );
         })}
       </div>
+
+      <div style={{ marginTop: 16 }}>
+        <Logboek regels={logboekLijst} onderwerpNaam={new Map(onderwerpen.map((o) => [o.id, o.naam]))} niveauLabels={niveauLabels} gebruikersNaam={gebruikersNaam} />
+      </div>
+
+      {bevestiging && (
+        <BevestigingsVenster
+          onderwerpNaam={bevestiging.onderwerp.naam}
+          niveauLabel={niveauLabels.get(bevestiging.nieuweNiveau)}
+          criterium={bevestiging.nieuweNiveau === 3 ? bevestiging.onderwerp.criterium_3 : bevestiging.onderwerp.criterium_4}
+          onAnnuleer={() => setBevestiging(null)}
+          onBevestig={async () => {
+            const { onderwerp, huidigeNiveau, nieuweNiveau } = bevestiging;
+            setBevestiging(null);
+            await pasNiveauToe(onderwerp, huidigeNiveau, nieuweNiveau);
+          }}
+        />
+      )}
+
+      {toast && <Toast tekst={toast.tekst} onTochNiet={tochNiet} onVerlopen={() => setToast(null)} />}
     </div>
   );
 }
 
-function OnderwerpRegel({ onderwerp, niveau, label }) {
+function OnderwerpRegel({ onderwerp, niveau, label, gebruiker, onTik, criteriaOpen, onToggleCriteria, opmerkingen, gebruikersNaam, onOpmerkingToevoegen }) {
   const afgerond = niveau >= onderwerp.max_niveau;
+
   return (
     <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -72,19 +166,40 @@ function OnderwerpRegel({ onderwerp, niveau, label }) {
           {onderwerp.type}
         </span>
       </div>
-      <div style={{ fontSize: 13, color: afgerond ? C.green : C.soft, fontWeight: afgerond ? 600 : 400, marginTop: 4 }}>
+
+      <div style={{ fontSize: 13, color: afgerond ? C.green : C.soft, fontWeight: afgerond ? 600 : 400, margin: "4px 0 8px" }}>
         {label}
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-        {onderwerp.aanspreekpunt && (
-          <span style={chipStijl}>Aanspreekpunt · {onderwerp.aanspreekpunt}</span>
-        )}
+
+      <Bolletjes
+        max={onderwerp.max_niveau}
+        huidigeNiveau={niveau}
+        magTikken={(n) => magTikken(gebruiker, onderwerp, niveau, n)}
+        onTik={onTik}
+      />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+        {onderwerp.aanspreekpunt && <span style={chipStijl}>Aanspreekpunt · {onderwerp.aanspreekpunt}</span>}
         {onderwerp.welder_link && (
           <a href={onderwerp.welder_link} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.works }}>
             Bekijk in Welder
           </a>
         )}
+        {gebruiker.rol === "medewerker" && (onderwerp.criterium_3 || onderwerp.criterium_4) && (
+          <button onClick={onToggleCriteria} style={{ fontSize: 12, color: C.works, background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+            Wat moet ik hiervoor laten zien?
+          </button>
+        )}
       </div>
+
+      {criteriaOpen && (
+        <div style={{ fontSize: 12, color: C.soft, marginTop: 6, background: C.bg, borderRadius: 8, padding: 8 }}>
+          {onderwerp.criterium_3 && <div>Kan toepassen: {onderwerp.criterium_3}</div>}
+          {onderwerp.criterium_4 && <div style={{ marginTop: 4 }}>Beheerst: {onderwerp.criterium_4}</div>}
+        </div>
+      )}
+
+      <Opmerkingen opmerkingen={opmerkingen} gebruikersNaam={gebruikersNaam} onToevoegen={onOpmerkingToevoegen} />
     </div>
   );
 }

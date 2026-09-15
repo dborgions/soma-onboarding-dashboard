@@ -25,7 +25,7 @@ export default function App() {
     let actief = true;
     supabase
       .from("gebruikers")
-      .select("naam, rol, vestiging_id")
+      .select("id, naam, rol, vestiging_id")
       .eq("id", sessie.user.id)
       .single()
       .then(({ data, error }) => {
