@@ -81,6 +81,13 @@ export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMa
           ))}
         </div>
       </div>
+
+      <button
+        onClick={() => setOpen(false)}
+        style={{ width: "100%", marginTop: 18, fontSize: 13, padding: "10px 0", borderRadius: 8, border: `1px solid ${C.line}`, background: "#fff", color: C.soft, cursor: "pointer" }}
+      >
+        Inklappen
+      </button>
       </div>
       )}
     </div>
