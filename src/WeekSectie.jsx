@@ -7,7 +7,7 @@ import { isVrijdag } from "./lib/berekeningen.js";
 const VELDEN = ["intakes", "voorstelacties", "gesprekken", "plaatsingen", "gestopten"];
 const LABELS = { intakes: "Intakes", voorstelacties: "Voorstelacties", gesprekken: "Gesprekken", plaatsingen: "Plaatsingen", gestopten: "Gestopt" };
 
-export default function WeekSectie({ magBewerken, cijfers, onOpslaan }) {
+export default function WeekSectie({ magBewerken, cijfers, onOpslaan, plaatsingKnop }) {
   const [open, setOpen] = useState(false);
   const huidig = cijfers || { intakes: 0, voorstelacties: 0, gesprekken: 0, plaatsingen: 0, gestopten: 0 };
   const totaal = VELDEN.reduce((s, v) => s + huidig[v], 0);
@@ -39,6 +39,8 @@ export default function WeekSectie({ magBewerken, cijfers, onOpslaan }) {
       <div style={{ fontSize: 12, color: C.soft, marginTop: 10, textAlign: "center" }}>
         Weekgemiddelde {gemiddelde} · Totaal {totaal}
       </div>
+
+      {plaatsingKnop}
 
       <Funnel cijfers={huidig} />
 

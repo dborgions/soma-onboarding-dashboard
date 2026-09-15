@@ -13,7 +13,6 @@ import SpecialistGesprekken from "./SpecialistGesprekken.jsx";
 import Feestscherm from "./Feestscherm.jsx";
 import { programmadag, percentageVoorType, huidigeWeek } from "./lib/berekeningen.js";
 import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
-import { speelFeestGeluid } from "./lib/geluid.js";
 
 export default function Detail({
   onboarder,
@@ -114,6 +113,31 @@ export default function Detail({
           magBewerken={magWeekBewerken}
           cijfers={huidigeCijfers}
           onOpslaan={(waarden) => slaWeekcijfersOp(onboarder.id, waarden)}
+          plaatsingKnop={
+            gebruiker.rol === "medewerker" && (
+              <button
+                onClick={async () => {
+                  await meldPlaatsing(onboarder);
+                  setFeest(true);
+                }}
+                style={{
+                  width: "100%",
+                  marginTop: 10,
+                  padding: "12px 0",
+                  borderRadius: 12,
+                  border: "none",
+                  background: C.accent,
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 15,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(241,136,37,0.35)",
+                }}
+              >
+                Ik heb er eentje!
+              </button>
+            )
+          }
         />
         <WeekNotitie
           magBewerken={magWeekBewerken}
@@ -194,32 +218,6 @@ export default function Detail({
           onWijzig={(competentieId, specialistId, huidigeStatus) => wijzigGesprekStatus(onboarder, competentieId, specialistId, huidigeStatus)}
         />
       </div>
-
-      {gebruiker.rol === "medewerker" && (
-        <div style={{ marginTop: 16 }}>
-          <button
-            onClick={async () => {
-              await meldPlaatsing(onboarder);
-              speelFeestGeluid();
-              setFeest(true);
-            }}
-            style={{
-              width: "100%",
-              padding: "14px 0",
-              borderRadius: 12,
-              border: "none",
-              background: C.accent,
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: 16,
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(241,136,37,0.35)",
-            }}
-          >
-            Ik heb er eentje!
-          </button>
-        </div>
-      )}
 
       <div style={{ marginTop: 16 }}>
         <Logboek
