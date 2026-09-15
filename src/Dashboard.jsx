@@ -4,6 +4,7 @@ import { C } from "./theme";
 import Overzicht from "./Overzicht.jsx";
 import Detail from "./Detail.jsx";
 import { programmadag, huidigeWeek } from "./lib/berekeningen.js";
+import { isAfgerond, huidigAdvies } from "./lib/nulmeting.js";
 
 export default function Dashboard({ gebruiker }) {
   const [laden, setLaden] = useState(true);
@@ -20,6 +21,9 @@ export default function Dashboard({ gebruiker }) {
   const [kerncompetenties, setKerncompetenties] = useState([]);
   const [specialisten, setSpecialisten] = useState([]);
   const [koppelingen, setKoppelingen] = useState([]);
+  const [indicatoren, setIndicatoren] = useState([]);
+  const [nulmeting, setNulmeting] = useState(new Map()); // onboarder_id -> Map(competentie_id -> rij)
+  const [nulmetingIndicatoren, setNulmetingIndicatoren] = useState(new Map()); // onboarder_id -> Set("competentieId-nr")
   const [niveauLabels, setNiveauLabels] = useState(new Map());
   const [opmerkingen, setOpmerkingen] = useState(new Map()); // onboarder_id -> [opmerking, ...]
   const [logboek, setLogboek] = useState(new Map()); // onboarder_id -> [logregel, ...]
@@ -68,6 +72,9 @@ export default function Dashboard({ gebruiker }) {
       { data: weeknotitiesData, error: eWeeknotities },
       { data: kerncompetentiesData, error: eKerncompetenties },
       { data: specialistenData, error: eSpecialisten },
+      { data: indicatorenData, error: eIndicatoren },
+      { data: nulmetingData, error: eNulmeting },
+      { data: nulmetingIndicatorenData, error: eNulmetingIndicatoren },
     ] = await Promise.all([
       supabase.from("onboarders").select("id, naam, startdatum, programma_dagen, vestiging_id, vestigingen(naam)").eq("actief", true),
       supabase.from("onderwerpen").select("*").eq("actief", true).order("volgorde"),
@@ -84,9 +91,12 @@ export default function Dashboard({ gebruiker }) {
       supabase.from("weeknotities").select("*").order("jaar").order("weeknummer"),
       supabase.from("kerncompetenties").select("id, naam, volgorde").order("volgorde"),
       supabase.from("specialisten").select("id, naam"),
+      supabase.from("indicatoren").select("competentie_id, nr, tekst"),
+      supabase.from("nulmeting").select("*"),
+      supabase.from("nulmeting_indicatoren").select("*"),
     ]);
 
-    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen || eWeekcijfers || eWeeknotities || eKerncompetenties || eSpecialisten;
+    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen || eWeekcijfers || eWeeknotities || eKerncompetenties || eSpecialisten || eIndicatoren || eNulmeting || eNulmetingIndicatoren;
     if (eerste) {
       setFout("Het laden van de gegevens is niet gelukt: " + eerste.message);
       setLaden(false);
@@ -109,6 +119,14 @@ export default function Dashboard({ gebruiker }) {
     setKerncompetenties(kerncompetentiesData);
     setSpecialisten(specialistenData);
     setKoppelingen(koppelingenData);
+    setIndicatoren(indicatorenData);
+    setNulmeting(groepeerPerOnboarder(nulmetingData, (r) => r.competentie_id, (r) => r));
+    const nmiMap = new Map();
+    for (const r of nulmetingIndicatorenData) {
+      if (!nmiMap.has(r.onboarder_id)) nmiMap.set(r.onboarder_id, new Set());
+      nmiMap.get(r.onboarder_id).add(`${r.competentie_id}-${r.indicator_nr}`);
+    }
+    setNulmetingIndicatoren(nmiMap);
     setLaden(false);
   }
 
@@ -291,6 +309,130 @@ export default function Dashboard({ gebruiker }) {
     return { ok: true };
   }
 
+  async function toggleIndicator(onboarder, competentieId, nr, huidigWaargenomen) {
+    if (huidigWaargenomen) {
+      const { error } = await supabase
+        .from("nulmeting_indicatoren")
+        .delete()
+        .eq("onboarder_id", onboarder.id)
+        .eq("competentie_id", competentieId)
+        .eq("indicator_nr", nr);
+      if (error) return { ok: false, fout: error.message };
+      setNulmetingIndicatoren((huidig) => {
+        const kopie = new Map(huidig);
+        const set = new Set(kopie.get(onboarder.id) || []);
+        set.delete(`${competentieId}-${nr}`);
+        kopie.set(onboarder.id, set);
+        return kopie;
+      });
+    } else {
+      const { error } = await supabase
+        .from("nulmeting_indicatoren")
+        .insert({ onboarder_id: onboarder.id, competentie_id: competentieId, indicator_nr: nr });
+      if (error) return { ok: false, fout: error.message };
+      setNulmetingIndicatoren((huidig) => {
+        const kopie = new Map(huidig);
+        const set = new Set(kopie.get(onboarder.id) || []);
+        set.add(`${competentieId}-${nr}`);
+        kopie.set(onboarder.id, set);
+        return kopie;
+      });
+    }
+    return { ok: true };
+  }
+
+  async function herbereekenAfgerond(onboarder, bijgewerkteMap) {
+    const afgerond = isAfgerond(bijgewerkteMap, kerncompetenties);
+    const { error } = await supabase.from("nulmeting").update({ afgerond }).eq("onboarder_id", onboarder.id);
+    if (error) return;
+    setNulmeting((huidig) => {
+      const kopie = new Map(huidig);
+      const perOnboarder = new Map(kopie.get(onboarder.id) || []);
+      for (const [cid, rij] of perOnboarder) perOnboarder.set(cid, { ...rij, afgerond });
+      kopie.set(onboarder.id, perOnboarder);
+      return kopie;
+    });
+  }
+
+  async function zetNulmetingScore(onboarder, competentieId, score) {
+    const bestaandeMap = nulmeting.get(onboarder.id) || new Map();
+    const bestaand = bestaandeMap.get(competentieId) || {};
+    const rij = {
+      onboarder_id: onboarder.id,
+      competentie_id: competentieId,
+      score,
+      notitie: bestaand.notitie || "",
+      investeringsadvies: huidigAdvies(bestaandeMap),
+      afgerond: bestaand.afgerond || false,
+      door: gebruiker.id,
+      tijdstip: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from("nulmeting").upsert(rij).select().single();
+    if (error) return { ok: false, fout: error.message };
+    const nieuweMap = new Map(bestaandeMap);
+    nieuweMap.set(competentieId, data);
+    setNulmeting((huidig) => {
+      const kopie = new Map(huidig);
+      kopie.set(onboarder.id, nieuweMap);
+      return kopie;
+    });
+    await herbereekenAfgerond(onboarder, nieuweMap);
+    return { ok: true };
+  }
+
+  async function zetNulmetingNotitie(onboarder, competentieId, notitie) {
+    const bestaandeMap = nulmeting.get(onboarder.id) || new Map();
+    const bestaand = bestaandeMap.get(competentieId) || {};
+    const rij = {
+      onboarder_id: onboarder.id,
+      competentie_id: competentieId,
+      score: bestaand.score ?? null,
+      notitie,
+      investeringsadvies: huidigAdvies(bestaandeMap),
+      afgerond: bestaand.afgerond || false,
+      door: gebruiker.id,
+      tijdstip: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from("nulmeting").upsert(rij).select().single();
+    if (error) return { ok: false, fout: error.message };
+    setNulmeting((huidig) => {
+      const kopie = new Map(huidig);
+      const perOnboarder = new Map(kopie.get(onboarder.id) || []);
+      perOnboarder.set(competentieId, data);
+      kopie.set(onboarder.id, perOnboarder);
+      return kopie;
+    });
+    return { ok: true };
+  }
+
+  async function zetInvesteringsadvies(onboarder, advies) {
+    const bestaandeMap = nulmeting.get(onboarder.id) || new Map();
+    const rijen = kerncompetenties.map((c) => {
+      const bestaand = bestaandeMap.get(c.id) || {};
+      return {
+        onboarder_id: onboarder.id,
+        competentie_id: c.id,
+        score: bestaand.score ?? null,
+        notitie: bestaand.notitie || "",
+        investeringsadvies: advies,
+        afgerond: false,
+        door: gebruiker.id,
+        tijdstip: new Date().toISOString(),
+      };
+    });
+    const { data, error } = await supabase.from("nulmeting").upsert(rijen).select();
+    if (error) return { ok: false, fout: error.message };
+    const nieuweMap = new Map(bestaandeMap);
+    for (const r of data) nieuweMap.set(r.competentie_id, r);
+    setNulmeting((huidig) => {
+      const kopie = new Map(huidig);
+      kopie.set(onboarder.id, nieuweMap);
+      return kopie;
+    });
+    await herbereekenAfgerond(onboarder, nieuweMap);
+    return { ok: true };
+  }
+
   if (laden) {
     return <Midden><span style={{ color: C.soft }}>Laden...</span></Midden>;
   }
@@ -316,6 +458,11 @@ export default function Dashboard({ gebruiker }) {
     koppelingen,
     wijzigGesprekStatus,
     meldPlaatsing,
+    indicatoren,
+    toggleIndicator,
+    zetNulmetingScore,
+    zetNulmetingNotitie,
+    zetInvesteringsadvies,
   };
 
   // Medewerker ziet altijd meteen zijn eigen dossier (bouwplan 7.4); RLS levert hem toch maar 1 rij.
@@ -340,6 +487,8 @@ export default function Dashboard({ gebruiker }) {
         weekcijfersMap={weekcijfers.get(eigenOnboarder.id) || new Map()}
         weeknotitiesLijst={weeknotities.get(eigenOnboarder.id) || []}
         gesprekkenLijst={gesprekken.get(eigenOnboarder.id) || []}
+        nulmetingMap={nulmeting.get(eigenOnboarder.id) || new Map()}
+        nulmetingIndicatorenSet={nulmetingIndicatoren.get(eigenOnboarder.id) || new Set()}
       />
     );
   }
@@ -357,6 +506,8 @@ export default function Dashboard({ gebruiker }) {
         weekcijfersMap={weekcijfers.get(onboarder.id) || new Map()}
         weeknotitiesLijst={weeknotities.get(onboarder.id) || []}
         gesprekkenLijst={gesprekken.get(onboarder.id) || []}
+        nulmetingMap={nulmeting.get(onboarder.id) || new Map()}
+        nulmetingIndicatorenSet={nulmetingIndicatoren.get(onboarder.id) || new Set()}
         terug={() => setGeselecteerd(null)}
       />
     );

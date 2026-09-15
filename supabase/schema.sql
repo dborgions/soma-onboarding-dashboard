@@ -35,6 +35,12 @@ create table if not exists fasen (id text primary key);
 create table if not exists weekcijfers (onboarder_id uuid, weeknummer int, jaar int, primary key (onboarder_id, weeknummer, jaar));
 create table if not exists weeknotities (onboarder_id uuid, weeknummer int, jaar int, primary key (onboarder_id, weeknummer, jaar));
 
+-- Nulmeting dag 30 (bouwplan hoofdstuk 13). De gedragsindicatoren per competentie
+-- zijn zelf ook inhoud (kernprincipe: inhoud is data), vandaar de aparte tabel.
+create table if not exists indicatoren (competentie_id uuid, nr int, primary key (competentie_id, nr));
+create table if not exists nulmeting (onboarder_id uuid, competentie_id uuid, primary key (onboarder_id, competentie_id));
+create table if not exists nulmeting_indicatoren (onboarder_id uuid, competentie_id uuid, indicator_nr int, primary key (onboarder_id, competentie_id, indicator_nr));
+
 -- ─────────────────────────────────────────────────────────────
 -- 1b. Kolommen (toevoegen als ze nog ontbreken — dit repareert een
 -- tabel die al bestond in een oudere/onvolledige vorm).
@@ -81,6 +87,15 @@ alter table weekcijfers add column if not exists tijdstip timestamptz not null d
 alter table weeknotities add column if not exists tekst text not null default '';
 alter table weeknotities add column if not exists door uuid references gebruikers(id);
 alter table weeknotities add column if not exists bijgewerkt_op timestamptz not null default now();
+
+alter table indicatoren add column if not exists tekst text not null default '';
+
+alter table nulmeting add column if not exists score int;
+alter table nulmeting add column if not exists notitie text not null default '';
+alter table nulmeting add column if not exists investeringsadvies text;
+alter table nulmeting add column if not exists afgerond boolean not null default false;
+alter table nulmeting add column if not exists door uuid references gebruikers(id);
+alter table nulmeting add column if not exists tijdstip timestamptz not null default now();
 
 -- Het logboek dekt zowel niveauwijzigingen als statuswijzigingen van specialistgesprekken
 -- (bouwplan 7.5 en 7.6) — daarom mogen onderwerp_id/van_niveau/naar_niveau leeg zijn
@@ -154,6 +169,18 @@ do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'verwachtingsniveaus_niveau_check') then
     alter table verwachtingsniveaus add constraint verwachtingsniveaus_niveau_check check (verwacht_niveau between 0 and 4);
   end if;
+  if not exists (select 1 from pg_constraint where conname = 'indicatoren_nr_check') then
+    alter table indicatoren add constraint indicatoren_nr_check check (nr between 1 and 5);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'nulmeting_score_check') then
+    alter table nulmeting add constraint nulmeting_score_check check (score is null or score between 1 and 3);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'nulmeting_advies_check') then
+    alter table nulmeting add constraint nulmeting_advies_check check (investeringsadvies is null or investeringsadvies in ('ja', 'twijfel', 'geen match'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'nulmeting_indicatoren_nr_check') then
+    alter table nulmeting_indicatoren add constraint nulmeting_indicatoren_nr_check check (indicator_nr between 1 and 5);
+  end if;
 end $$;
 
 -- ─────────────────────────────────────────────────────────────
@@ -194,6 +221,21 @@ do $$ begin
   end if;
   if not exists (select 1 from pg_constraint where conname = 'weeknotities_onboarder_fk') then
     alter table weeknotities add constraint weeknotities_onboarder_fk foreign key (onboarder_id) references onboarders(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'indicatoren_competentie_fk') then
+    alter table indicatoren add constraint indicatoren_competentie_fk foreign key (competentie_id) references kerncompetenties(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'nulmeting_onboarder_fk') then
+    alter table nulmeting add constraint nulmeting_onboarder_fk foreign key (onboarder_id) references onboarders(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'nulmeting_competentie_fk') then
+    alter table nulmeting add constraint nulmeting_competentie_fk foreign key (competentie_id) references kerncompetenties(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'nulmeting_indicatoren_onboarder_fk') then
+    alter table nulmeting_indicatoren add constraint nulmeting_indicatoren_onboarder_fk foreign key (onboarder_id) references onboarders(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'nulmeting_indicatoren_competentie_fk') then
+    alter table nulmeting_indicatoren add constraint nulmeting_indicatoren_competentie_fk foreign key (competentie_id) references kerncompetenties(id);
   end if;
 end $$;
 
@@ -386,6 +428,9 @@ alter table verwachtingsniveaus enable row level security;
 alter table fasen enable row level security;
 alter table weekcijfers enable row level security;
 alter table weeknotities enable row level security;
+alter table indicatoren enable row level security;
+alter table nulmeting enable row level security;
+alter table nulmeting_indicatoren enable row level security;
 
 -- Mentor: volledige rechten op alle tabellen.
 drop policy if exists mentor_all_vestigingen on vestigingen;
@@ -422,6 +467,12 @@ drop policy if exists mentor_all_weekcijfers on weekcijfers;
 create policy mentor_all_weekcijfers on weekcijfers for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 drop policy if exists mentor_all_weeknotities on weeknotities;
 create policy mentor_all_weeknotities on weeknotities for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_indicatoren on indicatoren;
+create policy mentor_all_indicatoren on indicatoren for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_nulmeting on nulmeting;
+create policy mentor_all_nulmeting on nulmeting for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_nulmeting_indicatoren on nulmeting_indicatoren;
+create policy mentor_all_nulmeting_indicatoren on nulmeting_indicatoren for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 
 -- Referentiedata: iedereen die ingelogd is mag lezen.
 drop policy if exists select_vestigingen on vestigingen;
@@ -442,6 +493,8 @@ drop policy if exists select_verwachtingsniveaus on verwachtingsniveaus;
 create policy select_verwachtingsniveaus on verwachtingsniveaus for select using (auth.uid() is not null);
 drop policy if exists select_fasen on fasen;
 create policy select_fasen on fasen for select using (auth.uid() is not null);
+drop policy if exists select_indicatoren on indicatoren;
+create policy select_indicatoren on indicatoren for select using (auth.uid() is not null);
 
 -- gebruikers: naam/rol van collega's is niet gevoelig binnen SOMA, dus elke
 -- ingelogde gebruiker mag de lijst lezen (nodig om "door wie" te kunnen tonen
@@ -573,6 +626,43 @@ create policy update_weeknotities_vm on weeknotities for update
   using (auth_rol() = 'vm')
   with check (auth_rol() = 'vm' and door = auth.uid());
 
+-- nulmeting: medewerker ziet zijn eigen meting pas als hij afgerond is (bouwplan 13),
+-- vm/mentor mogen altijd lezen en invullen.
+drop policy if exists select_nulmeting_zelf on nulmeting;
+create policy select_nulmeting_zelf on nulmeting for select
+  using (onboarder_id = auth_onboarder_id() and afgerond);
+drop policy if exists select_nulmeting_vm on nulmeting;
+create policy select_nulmeting_vm on nulmeting for select
+  using (auth_rol() = 'vm');
+drop policy if exists schrijf_nulmeting_vm on nulmeting;
+create policy schrijf_nulmeting_vm on nulmeting for insert
+  with check (auth_rol() = 'vm' and door = auth.uid());
+drop policy if exists update_nulmeting_vm on nulmeting;
+create policy update_nulmeting_vm on nulmeting for update
+  using (auth_rol() = 'vm')
+  with check (auth_rol() = 'vm' and door = auth.uid());
+
+drop policy if exists select_nulmeting_indicatoren_zelf on nulmeting_indicatoren;
+create policy select_nulmeting_indicatoren_zelf on nulmeting_indicatoren for select
+  using (
+    onboarder_id = auth_onboarder_id()
+    and exists (
+      select 1 from nulmeting n
+      where n.onboarder_id = nulmeting_indicatoren.onboarder_id
+        and n.competentie_id = nulmeting_indicatoren.competentie_id
+        and n.afgerond
+    )
+  );
+drop policy if exists select_nulmeting_indicatoren_vm on nulmeting_indicatoren;
+create policy select_nulmeting_indicatoren_vm on nulmeting_indicatoren for select
+  using (auth_rol() = 'vm');
+drop policy if exists schrijf_nulmeting_indicatoren_vm on nulmeting_indicatoren;
+create policy schrijf_nulmeting_indicatoren_vm on nulmeting_indicatoren for insert
+  with check (auth_rol() = 'vm');
+drop policy if exists verwijder_nulmeting_indicatoren_vm on nulmeting_indicatoren;
+create policy verwijder_nulmeting_indicatoren_vm on nulmeting_indicatoren for delete
+  using (auth_rol() = 'vm');
+
 -- ─────────────────────────────────────────────────────────────
 -- 5. Seed-data — per rij toegevoegd, alleen als die rij (op naam) nog niet bestaat.
 -- Werkt dus ook als de tabel al (verkeerde) data van eerder bevat.
@@ -681,6 +771,54 @@ select v.naam, v.volgorde from (values
   ('Drive', 50), ('Kwaliteitsgerichtheid', 60), ('Overtuigingskracht', 70)
 ) as v(naam, volgorde)
 where not exists (select 1 from kerncompetenties x where x.naam = v.naam);
+
+insert into indicatoren (competentie_id, nr, tekst)
+select k.id, v.nr, v.tekst
+from (values
+  ('Aanpassingsvermogen', 1, 'Pakt een spoedaanvraag op zonder eerst te mopperen dat zijn dag in de war ligt'),
+  ('Aanpassingsvermogen', 2, 'Is binnen tien minuten aan het bellen als een kandidaat afbelt'),
+  ('Aanpassingsvermogen', 3, 'Blijft rustig doorwerken als het druk is op de vestiging'),
+  ('Aanpassingsvermogen', 4, 'Duikt uit zichzelf in een nieuw systeem of een nieuwe werkwijze'),
+  ('Aanpassingsvermogen', 5, 'Zoekt uit wat er wél kan als een klant of kandidaat nee zegt'),
+
+  ('Overtuigingskracht', 1, 'Vraagt bij een bezwaar door in plaats van het gesprek af te ronden'),
+  ('Overtuigingskracht', 2, 'Past zijn verhaal aan op wie hij aan de lijn heeft'),
+  ('Overtuigingskracht', 3, 'Legt uit waarom zijn kandidaat de juiste is zonder zijn verkooppraatje af te draaien'),
+  ('Overtuigingskracht', 4, 'Durft te vragen: zullen we het gewoon doen?'),
+  ('Overtuigingskracht', 5, 'Komt terug bij een klant die eerder nee zei'),
+
+  ('Drive', 1, 'Belt door na drie keer nee, ook op vrijdagmiddag'),
+  ('Drive', 2, 'Pakt zijn 1.0''ers meteen op in plaats van later op de dag'),
+  ('Drive', 3, 'Gaat pas naar huis als hij heeft gedaan wat hij zich had voorgenomen'),
+  ('Drive', 4, 'Weet zonder opzoeken hoeveel intakes en voorstellen hij deze week heeft gedaan'),
+  ('Drive', 5, 'Komt na een slechte week terug met meer belletjes in plaats van minder'),
+
+  ('Creativiteit', 1, 'Verandert zijn aanpak als de standaardzoekopdracht niets oplevert'),
+  ('Creativiteit', 2, 'Kijkt naar wat een kandidaat feitelijk deed in plaats van naar zijn functietitel'),
+  ('Creativiteit', 3, 'Zoekt kandidaten op plekken waar de rest niet kijkt'),
+  ('Creativiteit', 4, 'Stelt de vraag die de anderen overslaan'),
+  ('Creativiteit', 5, 'Weet na een geslaagde plaatsing te benoemen wat hij anders deed'),
+
+  ('Commercialiteit', 1, 'Zet een signaal van een kandidaat of klant dezelfde dag om in een actie'),
+  ('Commercialiteit', 2, 'Stelt een tweede kandidaat voor op een aanvraag van één'),
+  ('Commercialiteit', 3, 'Vraagt bij een aanvraag door of er meer werk aankomt'),
+  ('Commercialiteit', 4, 'Kan uitleggen waarom SOMA duurder is zonder zich te verontschuldigen'),
+  ('Commercialiteit', 5, 'Stuurt op zijn conversie: blijven voorstellen hangen, dan verandert hij zijn aanpak'),
+
+  ('Kwaliteitsgerichtheid', 1, 'Stuurt geen voorstel weg waar hij zelf niet achter staat'),
+  ('Kwaliteitsgerichtheid', 2, 'Leest zijn voorstel één keer over met de ogen van de klant'),
+  ('Kwaliteitsgerichtheid', 3, 'Legt elke actie in Carerix vast, zodat zijn funnel klopt'),
+  ('Kwaliteitsgerichtheid', 4, 'Belt een nieuwe plaatsing binnen drie dagen na om te checken hoe het gaat'),
+  ('Kwaliteitsgerichtheid', 5, 'Pakt zijn eigen fout terug voordat een ander hem vindt'),
+
+  ('Empathie', 1, 'Luistert zonder alvast zijn antwoord klaar te hebben'),
+  ('Empathie', 2, 'Vraagt bij twijfel door naar wat iemand tegenhoudt'),
+  ('Empathie', 3, 'Past zijn toon aan op wie hij tegenover zich heeft'),
+  ('Empathie', 4, 'Merkt op wanneer een flexkracht stiller wordt en belt dan'),
+  ('Empathie', 5, 'Voert ook het gesprek na een afwijzing zo dat de kandidaat terugkomt')
+) as v(competentie_naam, nr, tekst)
+join kerncompetenties k on k.naam = v.competentie_naam
+where not exists (select 1 from indicatoren x where x.competentie_id = k.id and x.nr = v.nr);
 
 insert into specialisten (naam)
 select v.naam from (values

@@ -10,6 +10,8 @@ import Logboek from "./Logboek.jsx";
 import WeekSectie from "./WeekSectie.jsx";
 import WeekNotitie from "./WeekNotitie.jsx";
 import SpecialistGesprekken from "./SpecialistGesprekken.jsx";
+import NulmetingVM from "./NulmetingVM.jsx";
+import NulmetingMedewerker from "./NulmetingMedewerker.jsx";
 import Feestscherm from "./Feestscherm.jsx";
 import { programmadag, percentageVoorType, huidigeWeek } from "./lib/berekeningen.js";
 import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
@@ -31,6 +33,9 @@ export default function Detail({
   kerncompetenties,
   specialisten,
   koppelingen,
+  indicatoren,
+  nulmetingMap,
+  nulmetingIndicatorenSet,
   updateNiveau,
   undoNiveau,
   voegOpmerkingToe,
@@ -38,6 +43,10 @@ export default function Detail({
   slaWeeknotitieOp,
   wijzigGesprekStatus,
   meldPlaatsing,
+  toggleIndicator,
+  zetNulmetingScore,
+  zetNulmetingNotitie,
+  zetInvesteringsadvies,
   terug,
 }) {
   const [feest, setFeest] = useState(false);
@@ -218,6 +227,33 @@ export default function Detail({
           onWijzig={(competentieId, specialistId, huidigeStatus) => wijzigGesprekStatus(onboarder, competentieId, specialistId, huidigeStatus)}
         />
       </div>
+
+      {(gebruiker.rol === "vm" || gebruiker.rol === "mentor") && (
+        <div style={{ marginTop: 16 }}>
+          <NulmetingVM
+            kerncompetenties={kerncompetenties}
+            indicatoren={indicatoren}
+            nulmetingMap={nulmetingMap}
+            indicatorenSet={nulmetingIndicatorenSet}
+            onToggleIndicator={(competentieId, nr, waargenomen) => toggleIndicator(onboarder, competentieId, nr, waargenomen)}
+            onZetScore={(competentieId, score) => zetNulmetingScore(onboarder, competentieId, score)}
+            onZetNotitie={(competentieId, notitie) => zetNulmetingNotitie(onboarder, competentieId, notitie)}
+            onZetAdvies={(advies) => zetInvesteringsadvies(onboarder, advies)}
+          />
+        </div>
+      )}
+
+      {gebruiker.rol === "medewerker" && kerncompetenties.length > 0 && kerncompetenties.every((c) => nulmetingMap.get(c.id)?.afgerond) && (
+        <div style={{ marginTop: 16 }}>
+          <NulmetingMedewerker
+            kerncompetenties={kerncompetenties}
+            nulmetingMap={nulmetingMap}
+            koppelingen={koppelingen}
+            specialisten={specialisten}
+            gesprekkenLijst={gesprekkenLijst}
+          />
+        </div>
+      )}
 
       <div style={{ marginTop: 16 }}>
         <Logboek
