@@ -27,7 +27,7 @@ export default function WeekSectie({ magBewerken, cijfers, onOpslaan }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginTop: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(56px, 1fr))", gap: 8, marginTop: 12 }}>
         {VELDEN.map((v) => (
           <div key={v} style={{ textAlign: "center" }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.group }}>{huidig[v]}</div>
