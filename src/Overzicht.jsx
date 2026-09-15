@@ -6,12 +6,12 @@ import { programmadag, percentageVoorType, percentageGesprekken, huidigeWeek } f
 export default function Overzicht({ onboarders, onderwerpen, niveauStand, gesprekken, totaalKoppelingen, mijlpalen, weekcijfers, onSelecteer }) {
   const { jaar, weeknummer } = huidigeWeek();
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
       <h1 style={{ color: C.group, fontSize: 20, marginBottom: 16 }}>Onboarders</h1>
       {onboarders.length === 0 && (
         <p style={{ color: C.soft }}>Er zijn nog geen actieve onboarders.</p>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
         {onboarders.map((o) => {
           const standMap = niveauStand.get(o.id) || new Map();
           const kennis = percentageVoorType(standMap, onderwerpen, "kennis");

@@ -78,28 +78,27 @@ export default function Detail({
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", padding: 16, paddingBottom: 60 }}>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16, paddingBottom: 60 }}>
       {terug && (
         <button onClick={terug} style={terugKnopStijl}>
           &larr; Terug naar overzicht
         </button>
       )}
 
-      <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-        <div style={{ fontWeight: 700, color: C.group, fontSize: 18 }}>{onboarder.naam}</div>
-        <div style={{ fontSize: 12, color: C.soft }}>{onboarder.vestigingen?.naam}</div>
-        <Tijdlijn dag={dag} programmaDagen={onboarder.programma_dagen} mijlpalen={mijlpalen} />
-        <Voortgangsbalk label="Kennis" percentage={kennis} kleur={C.works} />
-        <Voortgangsbalk label="Vaardigheden" percentage={vaardigheden} kleur={C.accent} />
-      </div>
-
-      {gebruiker.rol === "medewerker" && (
-        <div style={{ fontSize: 12, color: C.soft, marginTop: 12, padding: "8px 12px", background: "#eef2f8", borderRadius: 10 }}>
-          Stap 1 vink je zelf af. Vanaf stap 2 toon je het aan je VM of mentor.
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+        <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontWeight: 700, color: C.group, fontSize: 18 }}>{onboarder.naam}</div>
+          <div style={{ fontSize: 12, color: C.soft }}>{onboarder.vestigingen?.naam}</div>
+          <Tijdlijn dag={dag} programmaDagen={onboarder.programma_dagen} mijlpalen={mijlpalen} />
+          <Voortgangsbalk label="Kennis" percentage={kennis} kleur={C.works} />
+          <Voortgangsbalk label="Vaardigheden" percentage={vaardigheden} kleur={C.accent} />
+          {gebruiker.rol === "medewerker" && (
+            <div style={{ fontSize: 12, color: C.soft, marginTop: 12, padding: "8px 12px", background: "#eef2f8", borderRadius: 10 }}>
+              Stap 1 vink je zelf af. Vanaf stap 2 toon je het aan je VM of mentor.
+            </div>
+          )}
         </div>
-      )}
 
-      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
         <WeekSectie
           magBewerken={magWeekBewerken}
           cijfers={huidigeCijfers}
@@ -113,7 +112,7 @@ export default function Detail({
         />
       </div>
 
-      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 16, alignItems: "start" }}>
         {fasen.map((fase) => {
           const items = onderwerpen.filter((o) => o.fase_id === fase.id);
           if (items.length === 0) return null;

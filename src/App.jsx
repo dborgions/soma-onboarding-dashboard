@@ -70,7 +70,7 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif" }}>
       <div
         style={{
-          maxWidth: 480,
+          maxWidth: 1100,
           margin: "0 auto",
           padding: "12px 16px 0",
           display: "flex",
