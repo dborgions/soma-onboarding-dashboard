@@ -8,13 +8,15 @@ export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMa
   const aantalGescoord = kerncompetenties.filter((c) => nulmetingMap.get(c.id)?.score).length;
 
   return (
-    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={{ fontWeight: 700, color: C.group }}>Nulmeting dag 30</div>
+    <details style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+      <summary style={{ padding: 16, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "baseline", listStyle: "none" }}>
+        <span style={{ fontWeight: 700, color: C.group }}>Nulmeting dag 30</span>
         <span style={{ fontSize: 12, color: afgerond ? C.green : C.soft, fontWeight: afgerond ? 600 : 400 }}>
           {afgerond ? "Afgerond" : `${aantalGescoord} van ${kerncompetenties.length} beoordeeld`}
         </span>
-      </div>
+      </summary>
+
+      <div style={{ padding: "0 16px 16px" }}>
       <div style={{ fontSize: 12, color: C.soft, marginTop: 4, marginBottom: 12 }}>
         Geen prestatiemeting, maar een inventarisatie van startpunt en groeipotentieel.
       </div>
@@ -58,7 +60,8 @@ export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMa
           ))}
         </div>
       </div>
-    </div>
+      </div>
+    </details>
   );
 }
 
