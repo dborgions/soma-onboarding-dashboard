@@ -410,6 +410,30 @@ $$;
 
 grant execute on function meld_plaatsing(uuid) to authenticated;
 
+-- Beheershulpje: een onboarder en al zijn gegevens in één keer verwijderen
+-- (bijv. om testdata op te ruimen). Gebruik: select verwijder_onboarder('Naam');
+create or replace function verwijder_onboarder(p_naam text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id from onboarders where naam = p_naam;
+  if v_id is null then
+    raise exception 'Geen onboarder gevonden met naam %', p_naam;
+  end if;
+
+  delete from nulmeting_indicatoren where onboarder_id = v_id;
+  delete from nulmeting where onboarder_id = v_id;
+  delete from opmerkingen where onboarder_id = v_id;
+  delete from specialist_gesprekken where onboarder_id = v_id;
+  delete from weeknotities where onboarder_id = v_id;
+  delete from weekcijfers where onboarder_id = v_id;
+  delete from niveau_stand where onboarder_id = v_id;
+  delete from logboek where onboarder_id = v_id;
+  delete from onboarders where id = v_id;
+end;
+$$;
+
 -- ─────────────────────────────────────────────────────────────
 -- 4. Row level security
 -- ─────────────────────────────────────────────────────────────
