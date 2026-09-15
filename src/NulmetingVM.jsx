@@ -4,10 +4,20 @@ import { SCORE_LABELS, ADVIES_OPTIES, isAfgerond, huidigAdvies } from "./lib/nul
 
 export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMap, indicatorenSet, onToggleIndicator, onZetScore, onZetNotitie, onZetAdvies }) {
   const [open, setOpen] = useState(false);
+  const [opgeslagen, setOpgeslagen] = useState(false);
   const afgerond = isAfgerond(nulmetingMap, kerncompetenties);
   const advies = huidigAdvies(nulmetingMap);
   const aantalGescoord = kerncompetenties.filter((c) => nulmetingMap.get(c.id)?.score).length;
   const gestart = aantalGescoord > 0 || open;
+
+  function flashOpgeslagen() {
+    setOpgeslagen(true);
+    setTimeout(() => setOpgeslagen(false), 2000);
+  }
+  async function metBevestiging(actie) {
+    await actie();
+    flashOpgeslagen();
+  }
 
   return (
     <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
@@ -18,6 +28,9 @@ export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMa
             {afgerond ? "Afgerond" : `${aantalGescoord} van ${kerncompetenties.length} beoordeeld`}
           </div>
         </div>
+        {open && opgeslagen && (
+          <span style={{ fontSize: 12, color: C.green, marginRight: 10 }}>Opgeslagen ✓</span>
+        )}
         {!open && (
           <button
             onClick={() => setOpen(true)}
@@ -50,20 +63,23 @@ export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMa
             indicatoren={indicatoren.filter((i) => i.competentie_id === comp.id)}
             rij={nulmetingMap.get(comp.id)}
             indicatorenSet={indicatorenSet}
-            onToggleIndicator={(nr, waargenomen) => onToggleIndicator(comp.id, nr, waargenomen)}
-            onZetScore={(score) => onZetScore(comp.id, score)}
-            onZetNotitie={(notitie) => onZetNotitie(comp.id, notitie)}
+            onToggleIndicator={(nr, waargenomen) => metBevestiging(() => onToggleIndicator(comp.id, nr, waargenomen))}
+            onZetScore={(score) => metBevestiging(() => onZetScore(comp.id, score))}
+            onZetNotitie={(notitie) => metBevestiging(() => onZetNotitie(comp.id, notitie))}
           />
         ))}
       </div>
 
       <div style={{ marginTop: 18, borderTop: `1px solid ${C.line}`, paddingTop: 14 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Investeringsadvies</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Investeringsadvies</div>
+          {opgeslagen && <span style={{ fontSize: 12, color: C.green }}>Opgeslagen ✓</span>}
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {ADVIES_OPTIES.map((optie) => (
             <button
               key={optie}
-              onClick={() => onZetAdvies(optie)}
+              onClick={() => metBevestiging(() => onZetAdvies(optie))}
               style={{
                 fontSize: 13,
                 padding: "8px 14px",
