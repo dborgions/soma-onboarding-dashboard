@@ -1,16 +1,23 @@
 import { useEffect } from "react";
 import { C } from "./theme";
-import { FEEST_VIDEO, FEEST_AFBEELDING } from "./feestConfig.js";
+import { FEEST_VIDEO, FEEST_AFBEELDING, FEEST_GELUID } from "./feestConfig.js";
 import { speelFeestGeluid } from "./lib/geluid.js";
 
 const KLEUREN = [C.accent, C.works, C.green, C.group, "#f4c542"];
-const heeftMedia = Boolean(FEEST_VIDEO || FEEST_AFBEELDING);
+const heeftBeeld = Boolean(FEEST_VIDEO || FEEST_AFBEELDING);
 
 export default function Feestscherm({ onKlaar }) {
   useEffect(() => {
-    // Bij een eigen video laten we het geluid van de video zelf horen, anders het melodietje.
-    if (!heeftMedia) speelFeestGeluid();
-    const t = setTimeout(onKlaar, heeftMedia ? 4500 : 3000);
+    // Bij een eigen video laten we het geluid van de video zelf horen.
+    // Anders: het eigen geluidsbestand als dat is ingesteld, of het melodietje.
+    if (!FEEST_VIDEO) {
+      if (FEEST_GELUID) {
+        new Audio(`/feest/${FEEST_GELUID}`).play().catch(() => {});
+      } else {
+        speelFeestGeluid();
+      }
+    }
+    const t = setTimeout(onKlaar, heeftBeeld ? 4500 : 3000);
     return () => clearTimeout(t);
   }, [onKlaar]);
 
