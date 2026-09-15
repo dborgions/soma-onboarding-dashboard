@@ -372,8 +372,10 @@ declare
   v_startdatum date;
 begin
   select startdatum into v_startdatum from onboarders where id = old.onboarder_id;
+  -- auth.uid() is leeg als dit via de SQL Editor/beheer draait (geen ingelogde
+  -- gebruiker); val dan terug op wie de rij het laatst bijwerkte.
   insert into logboek (onboarder_id, competentie_id, specialist_id, van_status, naar_status, door_gebruiker, programmadag)
-  values (old.onboarder_id, old.competentie_id, old.specialist_id, old.status, 'Nog niet gepland', auth.uid(), bereken_programmadag(v_startdatum));
+  values (old.onboarder_id, old.competentie_id, old.specialist_id, old.status, 'Nog niet gepland', coalesce(auth.uid(), old.bijgewerkt_door), bereken_programmadag(v_startdatum));
   return old;
 end;
 $$;
