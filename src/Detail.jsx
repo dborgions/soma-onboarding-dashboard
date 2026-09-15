@@ -9,8 +9,11 @@ import Opmerkingen from "./Opmerkingen.jsx";
 import Logboek from "./Logboek.jsx";
 import WeekSectie from "./WeekSectie.jsx";
 import WeekNotitie from "./WeekNotitie.jsx";
+import SpecialistGesprekken from "./SpecialistGesprekken.jsx";
+import Feestscherm from "./Feestscherm.jsx";
 import { programmadag, percentageVoorType, huidigeWeek } from "./lib/berekeningen.js";
 import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
+import { speelFeestGeluid } from "./lib/geluid.js";
 
 export default function Detail({
   onboarder,
@@ -25,14 +28,22 @@ export default function Detail({
   logboekLijst,
   weekcijfersMap,
   weeknotitiesLijst,
+  gesprekkenLijst,
+  kerncompetenties,
+  specialisten,
+  koppelingen,
   updateNiveau,
   undoNiveau,
   voegOpmerkingToe,
   slaWeekcijfersOp,
   slaWeeknotitieOp,
+  wijzigGesprekStatus,
+  meldPlaatsing,
   terug,
 }) {
+  const [feest, setFeest] = useState(false);
   const magWeekBewerken = gebruiker.rol === "vm" || gebruiker.rol === "mentor";
+  const statusMap = new Map(gesprekkenLijst.map((g) => [`${g.competentie_id}-${g.specialist_id}`, g.status]));
   const { jaar, weeknummer } = huidigeWeek();
   const huidigeCijfers = weekcijfersMap.get(`${jaar}-${weeknummer}`);
   const huidigeNotitie = weeknotitiesLijst.find((n) => n.jaar === jaar && n.weeknummer === weeknummer);
@@ -175,8 +186,53 @@ export default function Detail({
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <Logboek regels={logboekLijst} onderwerpNaam={new Map(onderwerpen.map((o) => [o.id, o.naam]))} niveauLabels={niveauLabels} gebruikersNaam={gebruikersNaam} />
+        <SpecialistGesprekken
+          kerncompetenties={kerncompetenties}
+          specialisten={specialisten}
+          koppelingen={koppelingen}
+          statusMap={statusMap}
+          onWijzig={(competentieId, specialistId, huidigeStatus) => wijzigGesprekStatus(onboarder, competentieId, specialistId, huidigeStatus)}
+        />
       </div>
+
+      {gebruiker.rol === "medewerker" && (
+        <div style={{ marginTop: 16 }}>
+          <button
+            onClick={async () => {
+              await meldPlaatsing(onboarder);
+              speelFeestGeluid();
+              setFeest(true);
+            }}
+            style={{
+              width: "100%",
+              padding: "14px 0",
+              borderRadius: 12,
+              border: "none",
+              background: C.accent,
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: 16,
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(241,136,37,0.35)",
+            }}
+          >
+            Ik heb er eentje!
+          </button>
+        </div>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <Logboek
+          regels={logboekLijst}
+          onderwerpNaam={new Map(onderwerpen.map((o) => [o.id, o.naam]))}
+          niveauLabels={niveauLabels}
+          gebruikersNaam={gebruikersNaam}
+          competentieNaam={new Map(kerncompetenties.map((c) => [c.id, c.naam]))}
+          specialistNaam={new Map(specialisten.map((s) => [s.id, s.naam]))}
+        />
+      </div>
+
+      {feest && <Feestscherm onKlaar={() => setFeest(false)} />}
 
       {bevestiging && (
         <BevestigingsVenster

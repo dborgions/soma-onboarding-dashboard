@@ -17,6 +17,9 @@ export default function Dashboard({ gebruiker }) {
   const [fasen, setFasen] = useState([]);
   const [weekcijfers, setWeekcijfers] = useState(new Map()); // onboarder_id -> Map("jaar-week" -> rij)
   const [weeknotities, setWeeknotities] = useState(new Map()); // onboarder_id -> [notitie, ...]
+  const [kerncompetenties, setKerncompetenties] = useState([]);
+  const [specialisten, setSpecialisten] = useState([]);
+  const [koppelingen, setKoppelingen] = useState([]);
   const [niveauLabels, setNiveauLabels] = useState(new Map());
   const [opmerkingen, setOpmerkingen] = useState(new Map()); // onboarder_id -> [opmerking, ...]
   const [logboek, setLogboek] = useState(new Map()); // onboarder_id -> [logregel, ...]
@@ -63,12 +66,14 @@ export default function Dashboard({ gebruiker }) {
       { data: fasenData, error: eFasen },
       { data: weekcijfersData, error: eWeekcijfers },
       { data: weeknotitiesData, error: eWeeknotities },
+      { data: kerncompetentiesData, error: eKerncompetenties },
+      { data: specialistenData, error: eSpecialisten },
     ] = await Promise.all([
       supabase.from("onboarders").select("id, naam, startdatum, programma_dagen, vestiging_id, vestigingen(naam)").eq("actief", true),
       supabase.from("onderwerpen").select("*").eq("actief", true).order("volgorde"),
       supabase.from("niveau_stand").select("onboarder_id, onderwerp_id, niveau"),
-      supabase.from("specialist_gesprekken").select("onboarder_id, status"),
-      supabase.from("competentie_specialisten").select("*", { count: "exact", head: true }),
+      supabase.from("specialist_gesprekken").select("*"),
+      supabase.from("competentie_specialisten").select("competentie_id, specialist_id"),
       supabase.from("mijlpalen").select("id, naam, dag").order("dag"),
       supabase.from("niveau_labels").select("niveau, label"),
       supabase.from("opmerkingen").select("*").order("tijdstip"),
@@ -77,9 +82,11 @@ export default function Dashboard({ gebruiker }) {
       supabase.from("fasen").select("id, label, sub, kleur").order("volgorde"),
       supabase.from("weekcijfers").select("*"),
       supabase.from("weeknotities").select("*").order("jaar").order("weeknummer"),
+      supabase.from("kerncompetenties").select("id, naam, volgorde").order("volgorde"),
+      supabase.from("specialisten").select("id, naam"),
     ]);
 
-    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen || eWeekcijfers || eWeeknotities;
+    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen || eWeekcijfers || eWeeknotities || eKerncompetenties || eSpecialisten;
     if (eerste) {
       setFout("Het laden van de gegevens is niet gelukt: " + eerste.message);
       setLaden(false);
@@ -99,6 +106,9 @@ export default function Dashboard({ gebruiker }) {
     setFasen(fasenData);
     setWeekcijfers(groepeerPerOnboarder(weekcijfersData, (r) => `${r.jaar}-${r.weeknummer}`, (r) => r));
     setWeeknotities(groepeerLijstPerOnboarder(weeknotitiesData));
+    setKerncompetenties(kerncompetentiesData);
+    setSpecialisten(specialistenData);
+    setKoppelingen(koppelingenData);
     setLaden(false);
   }
 
@@ -210,6 +220,65 @@ export default function Dashboard({ gebruiker }) {
     return { ok: true };
   }
 
+  async function wijzigGesprekStatus(onboarder, competentieId, specialistId, huidigeStatus) {
+    if (huidigeStatus === "gevoerd") {
+      const { error } = await supabase
+        .from("specialist_gesprekken")
+        .delete()
+        .eq("onboarder_id", onboarder.id)
+        .eq("competentie_id", competentieId)
+        .eq("specialist_id", specialistId);
+      if (error) return { ok: false, fout: error.message };
+      setGesprekken((huidig) => {
+        const kopie = new Map(huidig);
+        const lijst = (kopie.get(onboarder.id) || []).filter((g) => !(g.competentie_id === competentieId && g.specialist_id === specialistId));
+        kopie.set(onboarder.id, lijst);
+        return kopie;
+      });
+      return { ok: true };
+    }
+
+    const nieuweStatus = huidigeStatus === "nog niet gepland" ? "ingepland" : "gevoerd";
+    const dag = programmadag(onboarder.startdatum);
+    const { data, error } = await supabase
+      .from("specialist_gesprekken")
+      .upsert({
+        onboarder_id: onboarder.id,
+        competentie_id: competentieId,
+        specialist_id: specialistId,
+        status: nieuweStatus,
+        bijgewerkt_door: gebruiker.id,
+        programmadag: dag,
+        tijdstip: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (error) return { ok: false, fout: error.message };
+    setGesprekken((huidig) => {
+      const kopie = new Map(huidig);
+      const lijst = (kopie.get(onboarder.id) || []).filter((g) => !(g.competentie_id === competentieId && g.specialist_id === specialistId));
+      lijst.push(data);
+      kopie.set(onboarder.id, lijst);
+      return kopie;
+    });
+    return { ok: true };
+  }
+
+  async function meldPlaatsing(onboarder) {
+    const { error } = await supabase.rpc("meld_plaatsing", { p_onboarder_id: onboarder.id });
+    if (error) return { ok: false, fout: error.message };
+    const { jaar, weeknummer } = huidigeWeek();
+    setWeekcijfers((huidig) => {
+      const kopie = new Map(huidig);
+      const perOnboarder = new Map(kopie.get(onboarder.id) || []);
+      const bestaand = perOnboarder.get(`${jaar}-${weeknummer}`) || { intakes: 0, voorstelacties: 0, gesprekken: 0, plaatsingen: 0, gestopten: 0 };
+      perOnboarder.set(`${jaar}-${weeknummer}`, { ...bestaand, onboarder_id: onboarder.id, jaar, weeknummer, plaatsingen: (bestaand.plaatsingen || 0) + 1 });
+      kopie.set(onboarder.id, perOnboarder);
+      return kopie;
+    });
+    return { ok: true };
+  }
+
   if (laden) {
     return <Midden><span style={{ color: C.soft }}>Laden...</span></Midden>;
   }
@@ -230,6 +299,11 @@ export default function Dashboard({ gebruiker }) {
     voegOpmerkingToe,
     slaWeekcijfersOp,
     slaWeeknotitieOp,
+    kerncompetenties,
+    specialisten,
+    koppelingen,
+    wijzigGesprekStatus,
+    meldPlaatsing,
   };
 
   // Medewerker ziet altijd meteen zijn eigen dossier (bouwplan 7.4); RLS levert hem toch maar 1 rij.
@@ -253,6 +327,7 @@ export default function Dashboard({ gebruiker }) {
         logboekLijst={logboek.get(eigenOnboarder.id) || []}
         weekcijfersMap={weekcijfers.get(eigenOnboarder.id) || new Map()}
         weeknotitiesLijst={weeknotities.get(eigenOnboarder.id) || []}
+        gesprekkenLijst={gesprekken.get(eigenOnboarder.id) || []}
       />
     );
   }
@@ -269,6 +344,7 @@ export default function Dashboard({ gebruiker }) {
         logboekLijst={logboek.get(onboarder.id) || []}
         weekcijfersMap={weekcijfers.get(onboarder.id) || new Map()}
         weeknotitiesLijst={weeknotities.get(onboarder.id) || []}
+        gesprekkenLijst={gesprekken.get(onboarder.id) || []}
         terug={() => setGeselecteerd(null)}
       />
     );

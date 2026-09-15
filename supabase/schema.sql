@@ -82,6 +82,17 @@ alter table weeknotities add column if not exists tekst text not null default ''
 alter table weeknotities add column if not exists door uuid references gebruikers(id);
 alter table weeknotities add column if not exists bijgewerkt_op timestamptz not null default now();
 
+-- Het logboek dekt zowel niveauwijzigingen als statuswijzigingen van specialistgesprekken
+-- (bouwplan 7.5 en 7.6) — daarom mogen onderwerp_id/van_niveau/naar_niveau leeg zijn
+-- en zijn er losse kolommen voor de gesprekskant.
+alter table logboek alter column onderwerp_id drop not null;
+alter table logboek alter column van_niveau drop not null;
+alter table logboek alter column naar_niveau drop not null;
+alter table logboek add column if not exists competentie_id uuid references kerncompetenties(id);
+alter table logboek add column if not exists specialist_id uuid references specialisten(id);
+alter table logboek add column if not exists van_status text;
+alter table logboek add column if not exists naar_status text;
+
 alter table niveau_labels add column if not exists label text not null default '';
 
 alter table niveau_stand add column if not exists niveau int not null default 0;
@@ -293,6 +304,68 @@ $$;
 
 grant execute on function undo_niveau_wijziging(uuid, uuid, int) to authenticated;
 
+-- Statuswijziging van een specialistgesprek loggen (bouwplan 7.5/7.6).
+create or replace function log_gesprek_wijziging() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into logboek (onboarder_id, competentie_id, specialist_id, van_status, naar_status, door_gebruiker, programmadag)
+  values (
+    new.onboarder_id, new.competentie_id, new.specialist_id,
+    case when tg_op = 'INSERT' then 'Nog niet gepland' else old.status end,
+    new.status, new.bijgewerkt_door, new.programmadag
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_log_gesprek on specialist_gesprekken;
+create trigger trg_log_gesprek
+  after insert or update on specialist_gesprekken
+  for each row execute function log_gesprek_wijziging();
+
+-- Terugzetten naar "nog niet gepland" (rij weg) ook loggen.
+create or replace function log_gesprek_verwijderd() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_startdatum date;
+begin
+  select startdatum into v_startdatum from onboarders where id = old.onboarder_id;
+  insert into logboek (onboarder_id, competentie_id, specialist_id, van_status, naar_status, door_gebruiker, programmadag)
+  values (old.onboarder_id, old.competentie_id, old.specialist_id, old.status, 'Nog niet gepland', auth.uid(), bereken_programmadag(v_startdatum));
+  return old;
+end;
+$$;
+
+drop trigger if exists trg_log_gesprek_verwijderd on specialist_gesprekken;
+create trigger trg_log_gesprek_verwijderd
+  before delete on specialist_gesprekken
+  for each row execute function log_gesprek_verwijderd();
+
+-- "Ik heb er eentje!" — de onboarder telt zelf een plaatsing bij deze week op,
+-- ook al mag hij de weekcijfers zelf niet rechtstreeks bewerken (bouwplan hoofdstuk 17).
+create or replace function meld_plaatsing(p_onboarder_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_jaar int;
+  v_week int;
+begin
+  if auth_rol() = 'medewerker' and p_onboarder_id is distinct from auth_onboarder_id() then
+    raise exception 'Niet toegestaan';
+  elsif auth_rol() not in ('medewerker', 'vm', 'mentor') then
+    raise exception 'Niet toegestaan';
+  end if;
+
+  select extract(isoyear from current_date)::int, extract(week from current_date)::int into v_jaar, v_week;
+
+  insert into weekcijfers (onboarder_id, jaar, weeknummer, plaatsingen, ingevuld_door, tijdstip)
+  values (p_onboarder_id, v_jaar, v_week, 1, auth.uid(), now())
+  on conflict (onboarder_id, jaar, weeknummer)
+  do update set plaatsingen = weekcijfers.plaatsingen + 1, ingevuld_door = auth.uid(), tijdstip = now();
+end;
+$$;
+
+grant execute on function meld_plaatsing(uuid) to authenticated;
+
 -- ─────────────────────────────────────────────────────────────
 -- 4. Row level security
 -- ─────────────────────────────────────────────────────────────
@@ -461,6 +534,14 @@ drop policy if exists update_gesprekken_vm on specialist_gesprekken;
 create policy update_gesprekken_vm on specialist_gesprekken for update
   using (auth_rol() = 'vm')
   with check (auth_rol() = 'vm' and bijgewerkt_door = auth.uid());
+
+-- Terugzetten naar "nog niet gepland" (rij verwijderen), zelfde rechten als bewerken.
+drop policy if exists delete_gesprekken_zelf on specialist_gesprekken;
+create policy delete_gesprekken_zelf on specialist_gesprekken for delete
+  using (onboarder_id = auth_onboarder_id());
+drop policy if exists delete_gesprekken_vm on specialist_gesprekken;
+create policy delete_gesprekken_vm on specialist_gesprekken for delete
+  using (auth_rol() = 'vm');
 
 -- weekcijfers en weeknotities: medewerker leest alleen zijn eigen dossier,
 -- alleen vm/mentor mogen invullen (bouwplan hoofdstuk 17: "Weekcijfers invullen: medewerker nee").
