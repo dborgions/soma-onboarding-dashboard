@@ -162,7 +162,7 @@ export default function Detail({
           if (items.length === 0) return null;
           const pctFase = percentageVoorFase(standMap, onderwerpen, fase.id);
           return (
-            <details key={fase.id} open style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${fase.kleur}` }}>
+            <details key={fase.id} style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${fase.kleur}` }}>
               <summary style={{ padding: "12px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                 <div>
                   <div style={{ fontWeight: 600, color: C.group }}>{fase.label}</div>
@@ -200,7 +200,7 @@ export default function Detail({
           );
         })}
         {onderwerpenZonderFase.length > 0 && (
-          <details open style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${C.soft}` }}>
+          <details style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${C.soft}` }}>
             <summary style={{ padding: "12px 16px", fontWeight: 600, color: C.group, cursor: "pointer" }}>
               Nog niet ingedeeld
             </summary>
