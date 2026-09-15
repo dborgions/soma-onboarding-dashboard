@@ -83,7 +83,7 @@ export default function App() {
           Uitloggen ({gebruiker.naam})
         </button>
       </div>
-      <Dashboard gebruiker={gebruiker} />
+      <Dashboard key={gebruiker.id} gebruiker={gebruiker} />
     </div>
   );
 }
