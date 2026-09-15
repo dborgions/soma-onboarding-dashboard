@@ -68,20 +68,27 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif" }}>
-      <div
-        style={{
-          maxWidth: 1100,
-          margin: "0 auto",
-          padding: "12px 16px 0",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ color: C.group, fontWeight: 700 }}>SOMA</span>
-        <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: C.soft, fontSize: 13, cursor: "pointer" }}>
-          Uitloggen ({gebruiker.naam})
-        </button>
+      <div style={{ background: C.group }}>
+        <div
+          style={{
+            maxWidth: 1100,
+            margin: "0 auto",
+            padding: "16px 16px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 20, letterSpacing: 0.3 }}>SOMA</div>
+            <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8 }}>
+              100 dagen onboarding
+            </div>
+          </div>
+          <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.85)", fontSize: 13, cursor: "pointer" }}>
+            Uitloggen ({gebruiker.naam})
+          </button>
+        </div>
       </div>
       <Dashboard key={gebruiker.id} gebruiker={gebruiker} />
     </div>

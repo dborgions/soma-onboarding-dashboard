@@ -42,6 +42,16 @@ export function percentageGesprekken(gesprekkenVoorOnboarder, totaalKoppelingen)
   return Math.round((gevoerd / totaalKoppelingen) * 100);
 }
 
+// Aantal (kalender)dagen geleden sinds een tijdstip — voor het "laatste beweging"-signaal.
+export function dagenGeleden(tijdstip) {
+  if (!tijdstip) return null;
+  const nu = new Date();
+  nu.setHours(0, 0, 0, 0);
+  const toen = new Date(tijdstip);
+  toen.setHours(0, 0, 0, 0);
+  return Math.round((nu - toen) / 86400000);
+}
+
 // ISO 8601 weeknummer (maandag t/m zondag), zoals gebruikelijk bij weekcijfers.
 export function isoWeek(datum) {
   const d = new Date(Date.UTC(datum.getFullYear(), datum.getMonth(), datum.getDate()));
