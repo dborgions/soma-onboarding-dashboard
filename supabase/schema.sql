@@ -31,6 +31,10 @@ create table if not exists verwachtingsniveaus (mijlpaal_id uuid, onderwerp_id u
 -- onderwerpenblokken op de detailpagina te groeperen, zoals in het ontwerp.
 create table if not exists fasen (id text primary key);
 
+-- Weekcijfers en de weeknotitie (bouwplan hoofdstuk 12 en 12b).
+create table if not exists weekcijfers (onboarder_id uuid, weeknummer int, jaar int, primary key (onboarder_id, weeknummer, jaar));
+create table if not exists weeknotities (onboarder_id uuid, weeknummer int, jaar int, primary key (onboarder_id, weeknummer, jaar));
+
 -- ─────────────────────────────────────────────────────────────
 -- 1b. Kolommen (toevoegen als ze nog ontbreken — dit repareert een
 -- tabel die al bestond in een oudere/onvolledige vorm).
@@ -65,6 +69,18 @@ alter table fasen add column if not exists label text not null default '';
 alter table fasen add column if not exists sub text not null default '';
 alter table fasen add column if not exists kleur text not null default '#6b7280';
 alter table fasen add column if not exists volgorde int not null default 0;
+
+alter table weekcijfers add column if not exists intakes int not null default 0;
+alter table weekcijfers add column if not exists voorstelacties int not null default 0;
+alter table weekcijfers add column if not exists gesprekken int not null default 0;
+alter table weekcijfers add column if not exists plaatsingen int not null default 0;
+alter table weekcijfers add column if not exists gestopten int not null default 0;
+alter table weekcijfers add column if not exists ingevuld_door uuid references gebruikers(id);
+alter table weekcijfers add column if not exists tijdstip timestamptz not null default now();
+
+alter table weeknotities add column if not exists tekst text not null default '';
+alter table weeknotities add column if not exists door uuid references gebruikers(id);
+alter table weeknotities add column if not exists bijgewerkt_op timestamptz not null default now();
 
 alter table niveau_labels add column if not exists label text not null default '';
 
@@ -161,6 +177,12 @@ do $$ begin
   end if;
   if not exists (select 1 from pg_constraint where conname = 'verwachtingsniveaus_onderwerp_fk') then
     alter table verwachtingsniveaus add constraint verwachtingsniveaus_onderwerp_fk foreign key (onderwerp_id) references onderwerpen(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'weekcijfers_onboarder_fk') then
+    alter table weekcijfers add constraint weekcijfers_onboarder_fk foreign key (onboarder_id) references onboarders(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'weeknotities_onboarder_fk') then
+    alter table weeknotities add constraint weeknotities_onboarder_fk foreign key (onboarder_id) references onboarders(id);
   end if;
 end $$;
 
@@ -289,6 +311,8 @@ alter table specialist_gesprekken enable row level security;
 alter table mijlpalen enable row level security;
 alter table verwachtingsniveaus enable row level security;
 alter table fasen enable row level security;
+alter table weekcijfers enable row level security;
+alter table weeknotities enable row level security;
 
 -- Mentor: volledige rechten op alle tabellen.
 drop policy if exists mentor_all_vestigingen on vestigingen;
@@ -321,6 +345,10 @@ drop policy if exists mentor_all_verwachtingsniveaus on verwachtingsniveaus;
 create policy mentor_all_verwachtingsniveaus on verwachtingsniveaus for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 drop policy if exists mentor_all_fasen on fasen;
 create policy mentor_all_fasen on fasen for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_weekcijfers on weekcijfers;
+create policy mentor_all_weekcijfers on weekcijfers for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_weeknotities on weeknotities;
+create policy mentor_all_weeknotities on weeknotities for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 
 -- Referentiedata: iedereen die ingelogd is mag lezen.
 drop policy if exists select_vestigingen on vestigingen;
@@ -433,6 +461,36 @@ drop policy if exists update_gesprekken_vm on specialist_gesprekken;
 create policy update_gesprekken_vm on specialist_gesprekken for update
   using (auth_rol() = 'vm')
   with check (auth_rol() = 'vm' and bijgewerkt_door = auth.uid());
+
+-- weekcijfers en weeknotities: medewerker leest alleen zijn eigen dossier,
+-- alleen vm/mentor mogen invullen (bouwplan hoofdstuk 17: "Weekcijfers invullen: medewerker nee").
+drop policy if exists select_weekcijfers_zelf on weekcijfers;
+create policy select_weekcijfers_zelf on weekcijfers for select
+  using (onboarder_id = auth_onboarder_id());
+drop policy if exists select_weekcijfers_vm on weekcijfers;
+create policy select_weekcijfers_vm on weekcijfers for select
+  using (auth_rol() = 'vm');
+drop policy if exists schrijf_weekcijfers_vm on weekcijfers;
+create policy schrijf_weekcijfers_vm on weekcijfers for insert
+  with check (auth_rol() = 'vm' and ingevuld_door = auth.uid());
+drop policy if exists update_weekcijfers_vm on weekcijfers;
+create policy update_weekcijfers_vm on weekcijfers for update
+  using (auth_rol() = 'vm')
+  with check (auth_rol() = 'vm' and ingevuld_door = auth.uid());
+
+drop policy if exists select_weeknotities_zelf on weeknotities;
+create policy select_weeknotities_zelf on weeknotities for select
+  using (onboarder_id = auth_onboarder_id());
+drop policy if exists select_weeknotities_vm on weeknotities;
+create policy select_weeknotities_vm on weeknotities for select
+  using (auth_rol() = 'vm');
+drop policy if exists insert_weeknotities_vm on weeknotities;
+create policy insert_weeknotities_vm on weeknotities for insert
+  with check (auth_rol() = 'vm' and door = auth.uid());
+drop policy if exists update_weeknotities_vm on weeknotities;
+create policy update_weeknotities_vm on weeknotities for update
+  using (auth_rol() = 'vm')
+  with check (auth_rol() = 'vm' and door = auth.uid());
 
 -- ─────────────────────────────────────────────────────────────
 -- 5. Seed-data — per rij toegevoegd, alleen als die rij (op naam) nog niet bestaat.

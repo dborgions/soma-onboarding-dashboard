@@ -3,7 +3,7 @@ import { supabase } from "./supabaseClient";
 import { C } from "./theme";
 import Overzicht from "./Overzicht.jsx";
 import Detail from "./Detail.jsx";
-import { programmadag } from "./lib/berekeningen.js";
+import { programmadag, huidigeWeek } from "./lib/berekeningen.js";
 
 export default function Dashboard({ gebruiker }) {
   const [laden, setLaden] = useState(true);
@@ -15,6 +15,8 @@ export default function Dashboard({ gebruiker }) {
   const [totaalKoppelingen, setTotaalKoppelingen] = useState(0);
   const [mijlpalen, setMijlpalen] = useState([]);
   const [fasen, setFasen] = useState([]);
+  const [weekcijfers, setWeekcijfers] = useState(new Map()); // onboarder_id -> Map("jaar-week" -> rij)
+  const [weeknotities, setWeeknotities] = useState(new Map()); // onboarder_id -> [notitie, ...]
   const [niveauLabels, setNiveauLabels] = useState(new Map());
   const [opmerkingen, setOpmerkingen] = useState(new Map()); // onboarder_id -> [opmerking, ...]
   const [logboek, setLogboek] = useState(new Map()); // onboarder_id -> [logregel, ...]
@@ -59,6 +61,8 @@ export default function Dashboard({ gebruiker }) {
       { data: logboekData, error: eLogboek },
       { data: gebruikersData, error: eGebruikers },
       { data: fasenData, error: eFasen },
+      { data: weekcijfersData, error: eWeekcijfers },
+      { data: weeknotitiesData, error: eWeeknotities },
     ] = await Promise.all([
       supabase.from("onboarders").select("id, naam, startdatum, programma_dagen, vestiging_id, vestigingen(naam)").eq("actief", true),
       supabase.from("onderwerpen").select("*").eq("actief", true).order("volgorde"),
@@ -71,9 +75,11 @@ export default function Dashboard({ gebruiker }) {
       supabase.from("logboek").select("*"),
       supabase.from("gebruikers").select("id, naam"),
       supabase.from("fasen").select("id, label, sub, kleur").order("volgorde"),
+      supabase.from("weekcijfers").select("*"),
+      supabase.from("weeknotities").select("*").order("jaar").order("weeknummer"),
     ]);
 
-    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen;
+    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen || eWeekcijfers || eWeeknotities;
     if (eerste) {
       setFout("Het laden van de gegevens is niet gelukt: " + eerste.message);
       setLaden(false);
@@ -91,6 +97,8 @@ export default function Dashboard({ gebruiker }) {
     setLogboek(groepeerLijstPerOnboarder(logboekData));
     setGebruikersNaam(new Map(gebruikersData.map((g) => [g.id, g.naam])));
     setFasen(fasenData);
+    setWeekcijfers(groepeerPerOnboarder(weekcijfersData, (r) => `${r.jaar}-${r.weeknummer}`, (r) => r));
+    setWeeknotities(groepeerLijstPerOnboarder(weeknotitiesData));
     setLaden(false);
   }
 
@@ -170,6 +178,38 @@ export default function Dashboard({ gebruiker }) {
     return { ok: true };
   }
 
+  async function slaWeekcijfersOp(onboarderId, waarden) {
+    const { jaar, weeknummer } = huidigeWeek();
+    const { error } = await supabase
+      .from("weekcijfers")
+      .upsert({ onboarder_id: onboarderId, jaar, weeknummer, ...waarden, ingevuld_door: gebruiker.id, tijdstip: new Date().toISOString() });
+    if (error) return { ok: false, fout: error.message };
+    setWeekcijfers((huidig) => {
+      const kopie = new Map(huidig);
+      const perOnboarder = new Map(kopie.get(onboarderId) || []);
+      perOnboarder.set(`${jaar}-${weeknummer}`, { onboarder_id: onboarderId, jaar, weeknummer, ...waarden });
+      kopie.set(onboarderId, perOnboarder);
+      return kopie;
+    });
+    return { ok: true };
+  }
+
+  async function slaWeeknotitieOp(onboarderId, tekst) {
+    const { jaar, weeknummer } = huidigeWeek();
+    const { error } = await supabase
+      .from("weeknotities")
+      .upsert({ onboarder_id: onboarderId, jaar, weeknummer, tekst, door: gebruiker.id, bijgewerkt_op: new Date().toISOString() });
+    if (error) return { ok: false, fout: error.message };
+    setWeeknotities((huidig) => {
+      const kopie = new Map(huidig);
+      const lijst = (kopie.get(onboarderId) || []).filter((n) => !(n.jaar === jaar && n.weeknummer === weeknummer));
+      lijst.push({ onboarder_id: onboarderId, jaar, weeknummer, tekst });
+      kopie.set(onboarderId, lijst);
+      return kopie;
+    });
+    return { ok: true };
+  }
+
   if (laden) {
     return <Midden><span style={{ color: C.soft }}>Laden...</span></Midden>;
   }
@@ -188,6 +228,8 @@ export default function Dashboard({ gebruiker }) {
     updateNiveau,
     undoNiveau,
     voegOpmerkingToe,
+    slaWeekcijfersOp,
+    slaWeeknotitieOp,
   };
 
   // Medewerker ziet altijd meteen zijn eigen dossier (bouwplan 7.4); RLS levert hem toch maar 1 rij.
@@ -209,6 +251,8 @@ export default function Dashboard({ gebruiker }) {
         standMap={niveauStand.get(eigenOnboarder.id) || new Map()}
         opmerkingenLijst={opmerkingen.get(eigenOnboarder.id) || []}
         logboekLijst={logboek.get(eigenOnboarder.id) || []}
+        weekcijfersMap={weekcijfers.get(eigenOnboarder.id) || new Map()}
+        weeknotitiesLijst={weeknotities.get(eigenOnboarder.id) || []}
       />
     );
   }
@@ -223,6 +267,8 @@ export default function Dashboard({ gebruiker }) {
         standMap={niveauStand.get(onboarder.id) || new Map()}
         opmerkingenLijst={opmerkingen.get(onboarder.id) || []}
         logboekLijst={logboek.get(onboarder.id) || []}
+        weekcijfersMap={weekcijfers.get(onboarder.id) || new Map()}
+        weeknotitiesLijst={weeknotities.get(onboarder.id) || []}
         terug={() => setGeselecteerd(null)}
       />
     );
@@ -236,6 +282,7 @@ export default function Dashboard({ gebruiker }) {
       gesprekken={gesprekken}
       totaalKoppelingen={totaalKoppelingen}
       mijlpalen={mijlpalen}
+      weekcijfers={weekcijfers}
       onSelecteer={setGeselecteerd}
     />
   );

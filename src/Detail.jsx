@@ -7,7 +7,9 @@ import BevestigingsVenster from "./BevestigingsVenster.jsx";
 import Toast from "./Toast.jsx";
 import Opmerkingen from "./Opmerkingen.jsx";
 import Logboek from "./Logboek.jsx";
-import { programmadag, percentageVoorType } from "./lib/berekeningen.js";
+import WeekSectie from "./WeekSectie.jsx";
+import WeekNotitie from "./WeekNotitie.jsx";
+import { programmadag, percentageVoorType, huidigeWeek } from "./lib/berekeningen.js";
 import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
 
 export default function Detail({
@@ -21,11 +23,23 @@ export default function Detail({
   gebruikersNaam,
   opmerkingenLijst,
   logboekLijst,
+  weekcijfersMap,
+  weeknotitiesLijst,
   updateNiveau,
   undoNiveau,
   voegOpmerkingToe,
+  slaWeekcijfersOp,
+  slaWeeknotitieOp,
   terug,
 }) {
+  const magWeekBewerken = gebruiker.rol === "vm" || gebruiker.rol === "mentor";
+  const { jaar, weeknummer } = huidigeWeek();
+  const huidigeCijfers = weekcijfersMap.get(`${jaar}-${weeknummer}`);
+  const huidigeNotitie = weeknotitiesLijst.find((n) => n.jaar === jaar && n.weeknummer === weeknummer);
+  const eerdereNotities = weeknotitiesLijst
+    .filter((n) => !(n.jaar === jaar && n.weeknummer === weeknummer))
+    .sort((a, b) => b.jaar - a.jaar || b.weeknummer - a.weeknummer)
+    .slice(0, 3);
   const [bevestiging, setBevestiging] = useState(null); // { onderwerp, nieuweNiveau }
   const [toast, setToast] = useState(null); // { onderwerpId, vanNiveau, naarNiveau, tekst }
   const [criteriaTonen, setCriteriaTonen] = useState(null); // onderwerp id
@@ -84,6 +98,20 @@ export default function Detail({
           Stap 1 vink je zelf af. Vanaf stap 2 toon je het aan je VM of mentor.
         </div>
       )}
+
+      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+        <WeekSectie
+          magBewerken={magWeekBewerken}
+          cijfers={huidigeCijfers}
+          onOpslaan={(waarden) => slaWeekcijfersOp(onboarder.id, waarden)}
+        />
+        <WeekNotitie
+          magBewerken={magWeekBewerken}
+          tekst={huidigeNotitie?.tekst}
+          laatsteDrie={eerdereNotities}
+          onOpslaan={(tekst) => slaWeeknotitieOp(onboarder.id, tekst)}
+        />
+      </div>
 
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
         {fasen.map((fase) => {

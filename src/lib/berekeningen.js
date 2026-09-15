@@ -30,3 +30,22 @@ export function percentageGesprekken(gesprekkenVoorOnboarder, totaalKoppelingen)
   const gevoerd = gesprekkenVoorOnboarder.filter((g) => g.status === "gevoerd").length;
   return Math.round((gevoerd / totaalKoppelingen) * 100);
 }
+
+// ISO 8601 weeknummer (maandag t/m zondag), zoals gebruikelijk bij weekcijfers.
+export function isoWeek(datum) {
+  const d = new Date(Date.UTC(datum.getFullYear(), datum.getMonth(), datum.getDate()));
+  const dagNr = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dagNr);
+  const jaarStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weeknummer = Math.ceil(((d - jaarStart) / 86400000 + 1) / 7);
+  return { jaar: d.getUTCFullYear(), weeknummer };
+}
+
+export function huidigeWeek() {
+  return isoWeek(new Date());
+}
+
+// Vrijdag is de dag van het OB-gesprek: dan heet de knop "Week afsluiten" (bouwplan 12).
+export function isVrijdag() {
+  return new Date().getDay() === 5;
+}
