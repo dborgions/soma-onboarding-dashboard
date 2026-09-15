@@ -11,7 +11,7 @@ export default function Overzicht({ onboarders, onderwerpen, niveauStand, gespre
       {onboarders.length === 0 && (
         <p style={{ color: C.soft }}>Er zijn nog geen actieve onboarders.</p>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))", gap: 16 }}>
         {onboarders.map((o) => {
           const standMap = niveauStand.get(o.id) || new Map();
           const kennis = percentageVoorType(standMap, onderwerpen, "kennis");

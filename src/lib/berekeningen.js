@@ -24,6 +24,17 @@ export function percentageVoorType(niveauStandVoorOnboarder, onderwerpen, type) 
   return Math.round((behaald / maximaal) * 100);
 }
 
+// Percentage voor één fase-blok op de detailpagina: zelfde rekenwijze als
+// percentageVoorType, maar dan over de onderwerpen van die fase.
+export function percentageVoorFase(niveauStandVoorOnboarder, onderwerpen, faseId) {
+  const items = onderwerpen.filter((o) => o.fase_id === faseId);
+  if (items.length === 0) return 0;
+  const behaald = items.reduce((som, o) => som + (niveauStandVoorOnboarder.get(o.id) || 0), 0);
+  const maximaal = items.reduce((som, o) => som + o.max_niveau, 0);
+  if (maximaal === 0) return 0;
+  return Math.round((behaald / maximaal) * 100);
+}
+
 // Percentage gevoerde specialistgesprekken t.o.v. het totaal aantal koppelingen (bouwplan 7.2).
 export function percentageGesprekken(gesprekkenVoorOnboarder, totaalKoppelingen) {
   if (totaalKoppelingen === 0) return 0;

@@ -13,7 +13,7 @@ import SpecialistGesprekken from "./SpecialistGesprekken.jsx";
 import NulmetingVM from "./NulmetingVM.jsx";
 import NulmetingMedewerker from "./NulmetingMedewerker.jsx";
 import Feestscherm from "./Feestscherm.jsx";
-import { programmadag, percentageVoorType, huidigeWeek } from "./lib/berekeningen.js";
+import { programmadag, percentageVoorType, percentageVoorFase, huidigeWeek } from "./lib/berekeningen.js";
 import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
 
 export default function Detail({
@@ -104,7 +104,7 @@ export default function Detail({
         </button>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 16 }}>
         <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
           <div style={{ fontWeight: 700, color: C.group, fontSize: 18 }}>{onboarder.naam}</div>
           <div style={{ fontSize: 12, color: C.soft }}>{onboarder.vestigingen?.naam}</div>
@@ -156,15 +156,25 @@ export default function Detail({
         />
       </div>
 
-      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 16, alignItems: "start" }}>
+      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(380px, 100%), 1fr))", gap: 16, alignItems: "start" }}>
         {fasen.map((fase) => {
           const items = onderwerpen.filter((o) => o.fase_id === fase.id);
           if (items.length === 0) return null;
+          const pctFase = percentageVoorFase(standMap, onderwerpen, fase.id);
           return (
             <details key={fase.id} open style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${fase.kleur}` }}>
-              <summary style={{ padding: "12px 16px", cursor: "pointer" }}>
-                <div style={{ fontWeight: 600, color: C.group }}>{fase.label}</div>
-                <div style={{ fontSize: 12, color: C.soft, fontWeight: 400 }}>{fase.sub}</div>
+              <summary style={{ padding: "12px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: C.group }}>{fase.label}</div>
+                  <div style={{ fontSize: 12, color: C.soft, fontWeight: 400 }}>{fase.sub}</div>
+                </div>
+                {pctFase >= 100 ? (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: C.green, borderRadius: 99, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                    Vamos! rond
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: fase.kleur, whiteSpace: "nowrap" }}>{pctFase}%</span>
+                )}
               </summary>
               <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 14 }}>
                 {items.map((o) => {
