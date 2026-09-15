@@ -3,20 +3,41 @@ import { C } from "./theme";
 import { SCORE_LABELS, ADVIES_OPTIES, isAfgerond, huidigAdvies } from "./lib/nulmeting.js";
 
 export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMap, indicatorenSet, onToggleIndicator, onZetScore, onZetNotitie, onZetAdvies }) {
+  const [open, setOpen] = useState(false);
   const afgerond = isAfgerond(nulmetingMap, kerncompetenties);
   const advies = huidigAdvies(nulmetingMap);
   const aantalGescoord = kerncompetenties.filter((c) => nulmetingMap.get(c.id)?.score).length;
+  const gestart = aantalGescoord > 0 || open;
 
   return (
-    <details style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <summary style={{ padding: 16, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "baseline", listStyle: "none" }}>
-        <span style={{ fontWeight: 700, color: C.group }}>Nulmeting dag 30</span>
-        <span style={{ fontSize: 12, color: afgerond ? C.green : C.soft, fontWeight: afgerond ? 600 : 400 }}>
-          {afgerond ? "Afgerond" : `${aantalGescoord} van ${kerncompetenties.length} beoordeeld`}
-        </span>
-      </summary>
+    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontWeight: 700, color: C.group }}>Nulmeting dag 30</div>
+          <div style={{ fontSize: 12, color: afgerond ? C.green : C.soft, fontWeight: afgerond ? 600 : 400, marginTop: 2 }}>
+            {afgerond ? "Afgerond" : `${aantalGescoord} van ${kerncompetenties.length} beoordeeld`}
+          </div>
+        </div>
+        {!open && (
+          <button
+            onClick={() => setOpen(true)}
+            style={{ fontSize: 12, padding: "8px 14px", borderRadius: 8, border: "none", background: C.works, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            {gestart ? "Verder gaan" : "Nulmeting starten"}
+          </button>
+        )}
+        {open && (
+          <button
+            onClick={() => setOpen(false)}
+            style={{ fontSize: 12, padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.line}`, background: "#fff", color: C.soft, cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            Inklappen
+          </button>
+        )}
+      </div>
 
-      <div style={{ padding: "0 16px 16px" }}>
+      {open && (
+      <div style={{ paddingTop: 16 }}>
       <div style={{ fontSize: 12, color: C.soft, marginTop: 4, marginBottom: 12 }}>
         Geen prestatiemeting, maar een inventarisatie van startpunt en groeipotentieel.
       </div>
@@ -61,7 +82,8 @@ export default function NulmetingVM({ kerncompetenties, indicatoren, nulmetingMa
         </div>
       </div>
       </div>
-    </details>
+      )}
+    </div>
   );
 }
 
