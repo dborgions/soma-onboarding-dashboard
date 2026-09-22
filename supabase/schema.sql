@@ -41,6 +41,10 @@ create table if not exists indicatoren (competentie_id uuid, nr int, primary key
 create table if not exists nulmeting (onboarder_id uuid, competentie_id uuid, primary key (onboarder_id, competentie_id));
 create table if not exists nulmeting_indicatoren (onboarder_id uuid, competentie_id uuid, indicator_nr int, primary key (onboarder_id, competentie_id, indicator_nr));
 
+-- De 100-dagenanalyse (bouwplan hoofdstuk 16). Alle cijfers erop komen uit de
+-- tabellen hierboven; opgeslagen wordt alleen wat de VM tijdens het gesprek invult.
+create table if not exists analyses (onboarder_id uuid primary key);
+
 -- ─────────────────────────────────────────────────────────────
 -- 1b. Kolommen (toevoegen als ze nog ontbreken — dit repareert een
 -- tabel die al bestond in een oudere/onvolledige vorm).
@@ -57,6 +61,11 @@ alter table onboarders add column if not exists vestiging_id uuid references ves
 alter table onboarders add column if not exists startdatum date not null default current_date;
 alter table onboarders add column if not exists programma_dagen int not null default 100;
 alter table onboarders add column if not exists actief boolean not null default true;
+-- Na dag 100 (of bij afvallen): het dossier verhuist naar het kopje "Afgerond"
+-- en telt niet meer mee in het actieve scorebord (bouwplan hoofdstuk 17).
+alter table onboarders add column if not exists status text not null default 'actief';
+alter table onboarders add column if not exists afgerond_op date;
+alter table onboarders add column if not exists reden text;
 
 alter table onderwerpen add column if not exists naam text not null default '';
 alter table onderwerpen add column if not exists categorie text not null default '';
@@ -96,6 +105,14 @@ alter table nulmeting add column if not exists investeringsadvies text;
 alter table nulmeting add column if not exists afgerond boolean not null default false;
 alter table nulmeting add column if not exists door uuid references gebruikers(id);
 alter table nulmeting add column if not exists tijdstip timestamptz not null default now();
+
+-- De drie velden die de VM tijdens het eindgesprek invult, plus wie en wanneer.
+alter table analyses add column if not exists sterk text not null default '';
+alter table analyses add column if not exists werk_komend_halfjaar text not null default '';
+alter table analyses add column if not exists afspraak text not null default '';
+alter table analyses add column if not exists gegenereerd_op timestamptz not null default now();
+alter table analyses add column if not exists door uuid references gebruikers(id);
+alter table analyses add column if not exists bijgewerkt_op timestamptz not null default now();
 
 -- Het logboek dekt zowel niveauwijzigingen als statuswijzigingen van specialistgesprekken
 -- (bouwplan 7.5 en 7.6) — daarom mogen onderwerp_id/van_niveau/naar_niveau leeg zijn
@@ -178,6 +195,9 @@ do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'nulmeting_advies_check') then
     alter table nulmeting add constraint nulmeting_advies_check check (investeringsadvies is null or investeringsadvies in ('ja', 'twijfel', 'geen match'));
   end if;
+  if not exists (select 1 from pg_constraint where conname = 'onboarders_status_check') then
+    alter table onboarders add constraint onboarders_status_check check (status in ('actief', 'afgerond', 'gestopt'));
+  end if;
   if not exists (select 1 from pg_constraint where conname = 'nulmeting_indicatoren_nr_check') then
     alter table nulmeting_indicatoren add constraint nulmeting_indicatoren_nr_check check (indicator_nr between 1 and 5);
   end if;
@@ -194,6 +214,9 @@ do $$ begin
   end if;
   if not exists (select 1 from pg_constraint where conname = 'niveau_stand_onderwerp_fk') then
     alter table niveau_stand add constraint niveau_stand_onderwerp_fk foreign key (onderwerp_id) references onderwerpen(id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'analyses_onboarder_fk') then
+    alter table analyses add constraint analyses_onboarder_fk foreign key (onboarder_id) references onboarders(id);
   end if;
   if not exists (select 1 from pg_constraint where conname = 'competentie_specialisten_competentie_fk') then
     alter table competentie_specialisten add constraint competentie_specialisten_competentie_fk foreign key (competentie_id) references kerncompetenties(id);
@@ -410,6 +433,29 @@ $$;
 
 grant execute on function meld_plaatsing(uuid) to authenticated;
 
+-- Dossier afronden of stopzetten (bouwplan hoofdstuk 17 "Na dag 100").
+-- Loopt via een functie en niet via een update-policy, zodat een VM wel de status
+-- van een dossier mag zetten maar verder niets aan de onboarderrij kan wijzigen.
+create or replace function zet_onboarder_status(p_onboarder_id uuid, p_status text, p_reden text default null) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth_rol() not in ('vm', 'mentor') then
+    raise exception 'Niet toegestaan';
+  end if;
+  if p_status not in ('actief', 'afgerond', 'gestopt') then
+    raise exception 'Onbekende status %', p_status;
+  end if;
+
+  update onboarders set
+    status = p_status,
+    afgerond_op = case when p_status = 'actief' then null else current_date end,
+    reden = case when p_status = 'actief' then null else nullif(btrim(coalesce(p_reden, '')), '') end
+  where id = p_onboarder_id;
+end;
+$$;
+
+grant execute on function zet_onboarder_status(uuid, text, text) to authenticated;
+
 -- Beheershulpje: een onboarder en al zijn gegevens in één keer verwijderen
 -- (bijv. om testdata op te ruimen). Gebruik: select verwijder_onboarder('Naam');
 create or replace function verwijder_onboarder(p_naam text) returns void
@@ -422,6 +468,7 @@ begin
     raise exception 'Geen onboarder gevonden met naam %', p_naam;
   end if;
 
+  delete from analyses where onboarder_id = v_id;
   delete from nulmeting_indicatoren where onboarder_id = v_id;
   delete from nulmeting where onboarder_id = v_id;
   delete from opmerkingen where onboarder_id = v_id;
@@ -431,6 +478,29 @@ begin
   delete from niveau_stand where onboarder_id = v_id;
   delete from logboek where onboarder_id = v_id;
   delete from onboarders where id = v_id;
+end;
+$$;
+
+-- Bewaartermijn (bouwplan hoofdstuk 17): afgeronde en gestopte dossiers worden
+-- één jaar na hun einddatum verwijderd, inclusief de 100-dagenanalyse.
+-- Draai dit één keer per jaar: select verwijder_verlopen_dossiers();
+-- (of plan het in als cron-job in Supabase). Geeft terug hoeveel dossiers weg zijn.
+create or replace function verwijder_verlopen_dossiers() returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  v_naam text;
+  v_aantal int := 0;
+begin
+  for v_naam in
+    select naam from onboarders
+    where status in ('afgerond', 'gestopt')
+      and afgerond_op is not null
+      and afgerond_op < current_date - interval '1 year'
+  loop
+    perform verwijder_onboarder(v_naam);
+    v_aantal := v_aantal + 1;
+  end loop;
+  return v_aantal;
 end;
 $$;
 
@@ -457,6 +527,7 @@ alter table weeknotities enable row level security;
 alter table indicatoren enable row level security;
 alter table nulmeting enable row level security;
 alter table nulmeting_indicatoren enable row level security;
+alter table analyses enable row level security;
 
 -- Mentor: volledige rechten op alle tabellen.
 drop policy if exists mentor_all_vestigingen on vestigingen;
@@ -499,6 +570,8 @@ drop policy if exists mentor_all_nulmeting on nulmeting;
 create policy mentor_all_nulmeting on nulmeting for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 drop policy if exists mentor_all_nulmeting_indicatoren on nulmeting_indicatoren;
 create policy mentor_all_nulmeting_indicatoren on nulmeting_indicatoren for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
+drop policy if exists mentor_all_analyses on analyses;
+create policy mentor_all_analyses on analyses for all using (auth_rol() = 'mentor') with check (auth_rol() = 'mentor');
 
 -- Referentiedata: iedereen die ingelogd is mag lezen.
 drop policy if exists select_vestigingen on vestigingen;
@@ -688,6 +761,22 @@ create policy schrijf_nulmeting_indicatoren_vm on nulmeting_indicatoren for inse
 drop policy if exists verwijder_nulmeting_indicatoren_vm on nulmeting_indicatoren;
 create policy verwijder_nulmeting_indicatoren_vm on nulmeting_indicatoren for delete
   using (auth_rol() = 'vm');
+
+-- analyses: de onboarder mag zijn eigen analyse inzien, de VM genereert en vult in
+-- (bouwplan hoofdstuk 17, tabel "Wie kan wat").
+drop policy if exists select_analyses_zelf on analyses;
+create policy select_analyses_zelf on analyses for select
+  using (onboarder_id = auth_onboarder_id());
+drop policy if exists select_analyses_vm on analyses;
+create policy select_analyses_vm on analyses for select
+  using (auth_rol() = 'vm');
+drop policy if exists insert_analyses_vm on analyses;
+create policy insert_analyses_vm on analyses for insert
+  with check (auth_rol() = 'vm' and door = auth.uid());
+drop policy if exists update_analyses_vm on analyses;
+create policy update_analyses_vm on analyses for update
+  using (auth_rol() = 'vm')
+  with check (auth_rol() = 'vm' and door = auth.uid());
 
 -- ─────────────────────────────────────────────────────────────
 -- 5. Seed-data — per rij toegevoegd, alleen als die rij (op naam) nog niet bestaat.
