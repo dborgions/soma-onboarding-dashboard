@@ -3,6 +3,11 @@ import { C } from "./theme";
 import { FEEST_VIDEO, FEEST_AFBEELDING, FEEST_GELUID } from "./feestConfig.js";
 import { speelFeestGeluid } from "./lib/geluid.js";
 
+// Op GitHub Pages draait de app onder /soma-onboarding-dashboard/, lokaal onder /.
+// Een pad dat met een schuine streep begint wijst daar dus naar de verkeerde plek;
+// BASE_URL vult het juiste voorvoegsel in (vite.config.js bepaalt welke).
+const FEEST_MAP = `${import.meta.env.BASE_URL}feest/`;
+
 const KLEUREN = [C.accent, C.works, C.green, C.group, "#f4c542"];
 const heeftBeeld = Boolean(FEEST_VIDEO || FEEST_AFBEELDING);
 
@@ -12,7 +17,7 @@ export default function Feestscherm({ onKlaar }) {
     // Anders: het eigen geluidsbestand als dat is ingesteld, of het melodietje.
     if (!FEEST_VIDEO) {
       if (FEEST_GELUID) {
-        new Audio(`/feest/${FEEST_GELUID}`).play().catch(() => {});
+        new Audio(`${FEEST_MAP}${FEEST_GELUID}`).play().catch(() => {});
       } else {
         speelFeestGeluid();
       }
@@ -63,7 +68,7 @@ export default function Feestscherm({ onKlaar }) {
       <div style={{ textAlign: "center", color: "#fff" }}>
         {FEEST_VIDEO && (
           <video
-            src={`/feest/${FEEST_VIDEO}`}
+            src={`${FEEST_MAP}${FEEST_VIDEO}`}
             autoPlay
             playsInline
             style={{ maxWidth: 320, width: "80vw", borderRadius: 14, marginBottom: 18, boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}
@@ -71,7 +76,7 @@ export default function Feestscherm({ onKlaar }) {
         )}
         {!FEEST_VIDEO && FEEST_AFBEELDING && (
           <img
-            src={`/feest/${FEEST_AFBEELDING}`}
+            src={`${FEEST_MAP}${FEEST_AFBEELDING}`}
             alt=""
             style={{ maxWidth: 320, width: "80vw", borderRadius: 14, marginBottom: 18, boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}
           />
