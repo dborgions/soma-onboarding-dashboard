@@ -18,7 +18,6 @@ export default function Dashboard({ gebruiker }) {
   const [fasen, setFasen] = useState([]);
   const [weekcijfers, setWeekcijfers] = useState(new Map()); // onboarder_id -> Map("jaar-week" -> rij)
   const [weeknotities, setWeeknotities] = useState(new Map()); // onboarder_id -> [notitie, ...]
-  const [laatsteBeweging, setLaatsteBeweging] = useState(new Map()); // onboarder_id -> ISO-datum laatste niveauwijziging
   const [kerncompetenties, setKerncompetenties] = useState([]);
   const [specialisten, setSpecialisten] = useState([]);
   const [koppelingen, setKoppelingen] = useState([]);
@@ -107,14 +106,6 @@ export default function Dashboard({ gebruiker }) {
     setOnboarders(onboardersData);
     setOnderwerpen(onderwerpenData);
     setNiveauStand(groepeerPerOnboarder(standData, (r) => r.onderwerp_id, (r) => r.niveau));
-    const bewegingMap = new Map();
-    for (const rij of standData) {
-      const huidig = bewegingMap.get(rij.onboarder_id);
-      if (!huidig || new Date(rij.bijgewerkt_op) > new Date(huidig)) {
-        bewegingMap.set(rij.onboarder_id, rij.bijgewerkt_op);
-      }
-    }
-    setLaatsteBeweging(bewegingMap);
     setGesprekken(groepeerLijstPerOnboarder(gesprekkenData));
     setTotaalKoppelingen(koppelingenData?.length ?? 0);
     setMijlpalen(mijlpalenData);
@@ -144,6 +135,20 @@ export default function Dashboard({ gebruiker }) {
     for (const rij of rijen) {
       if (!map.has(rij.onboarder_id)) map.set(rij.onboarder_id, new Map());
       map.get(rij.onboarder_id).set(sleutelFn(rij), waardeFn(rij));
+    }
+    return map;
+  }
+
+  // Laatste beweging = de laatste logregel: een niveauwijziging of een specialistgesprek.
+  // Bewust niet niveau_stand.bijgewerkt_op, want die rijen worden bij het aanmaken van
+  // een onboarder al gevuld — dan lijkt een gloednieuw dossier meteen "stil te staan".
+  function laatsteBewegingPerOnboarder() {
+    const map = new Map();
+    for (const [onboarderId, regels] of logboek) {
+      for (const r of regels) {
+        const huidig = map.get(onboarderId);
+        if (!huidig || new Date(r.tijdstip) > new Date(huidig)) map.set(onboarderId, r.tijdstip);
+      }
     }
     return map;
   }
@@ -531,7 +536,7 @@ export default function Dashboard({ gebruiker }) {
       totaalKoppelingen={totaalKoppelingen}
       mijlpalen={mijlpalen}
       weekcijfers={weekcijfers}
-      laatsteBeweging={laatsteBeweging}
+      laatsteBeweging={laatsteBewegingPerOnboarder()}
       onSelecteer={setGeselecteerd}
     />
   );

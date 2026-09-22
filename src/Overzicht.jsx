@@ -1,8 +1,10 @@
 import { C } from "./theme";
 import Tijdlijn from "./Tijdlijn.jsx";
-import { programmadag, percentageVoorType, huidigeWeek, dagenGeleden } from "./lib/berekeningen.js";
+import { programmadag, percentageVoorType, huidigeWeek, dagenGeleden, werkdagenGeleden } from "./lib/berekeningen.js";
 
-const STIL_NA_DAGEN = 7;
+// Een volle werkweek zonder enige beweging is het signaal. Heeft een onboarder nog
+// helemaal niets afgetikt, dan telt de stilstand vanaf zijn startdatum.
+const STIL_NA_WERKDAGEN = 5;
 
 export default function Overzicht({ onboarders, onderwerpen, niveauStand, gesprekken, totaalKoppelingen, mijlpalen, weekcijfers, laatsteBeweging, onSelecteer }) {
   const { jaar, weeknummer } = huidigeWeek();
@@ -20,9 +22,18 @@ export default function Overzicht({ onboarders, onderwerpen, niveauStand, gespre
           const gevoerd = (gesprekken.get(o.id) || []).filter((g) => g.status === "gevoerd").length;
           const dag = programmadag(o.startdatum);
           const weekIngevuld = (weekcijfers.get(o.id) || new Map()).has(`${jaar}-${weeknummer}`);
-          const dagen = dagenGeleden(laatsteBeweging.get(o.id));
-          const stil = dagen !== null && dagen >= STIL_NA_DAGEN;
-          const bewegingTekst = dagen === null ? "nog geen wijziging" : dagen === 0 ? "vandaag" : dagen === 1 ? "gisteren" : `${dagen} dagen geleden`;
+          const beweging = laatsteBeweging.get(o.id) || null;
+          const dagen = dagenGeleden(beweging);
+          const werkdagenStil = beweging ? werkdagenGeleden(beweging) : dag;
+          const stil = werkdagenStil >= STIL_NA_WERKDAGEN;
+          const bewegingTekst =
+            beweging === null
+              ? "nog geen wijziging"
+              : dagen === 0
+              ? "vandaag"
+              : dagen === 1
+              ? "gisteren"
+              : `${dagen} dagen geleden`;
 
           return (
             <button
@@ -30,6 +41,9 @@ export default function Overzicht({ onboarders, onderwerpen, niveauStand, gespre
               onClick={() => onSelecteer(o.id)}
               style={{
                 textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "stretch",
                 background: C.card,
                 border: "none",
                 borderRadius: 14,

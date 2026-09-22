@@ -42,6 +42,25 @@ export function percentageGesprekken(gesprekkenVoorOnboarder, totaalKoppelingen)
   return Math.round((gevoerd / totaalKoppelingen) * 100);
 }
 
+// Werkdagen (ma–vr) tussen een tijdstip en vandaag. Het stilstandsignaal telt in
+// werkdagen, net als de programmadag: een weekend is geen stilstand.
+export function werkdagenGeleden(tijdstip) {
+  if (!tijdstip) return null;
+  const toen = new Date(tijdstip);
+  toen.setHours(0, 0, 0, 0);
+  const vandaag = new Date();
+  vandaag.setHours(0, 0, 0, 0);
+  let dagen = 0;
+  const cursor = new Date(toen);
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= vandaag) {
+    const dow = cursor.getDay();
+    if (dow !== 0 && dow !== 6) dagen++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dagen;
+}
+
 // Aantal (kalender)dagen geleden sinds een tijdstip — voor het "laatste beweging"-signaal.
 export function dagenGeleden(tijdstip) {
   if (!tijdstip) return null;
