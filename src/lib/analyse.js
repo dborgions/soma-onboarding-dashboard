@@ -19,7 +19,8 @@ const FUNNELSTAPPEN = ["intakes", "voorstelacties", "gesprekken", "plaatsingen"]
 export const ANALYSE_VANAF_DAG = 90;
 
 export function magAnalyseOpenen(onboarder) {
-  return programmadag(onboarder.startdatum) >= ANALYSE_VANAF_DAG || onboarder.status !== "actief";
+  const afgesloten = (onboarder.status || "actief") !== "actief";
+  return afgesloten || programmadag(onboarder.startdatum) >= ANALYSE_VANAF_DAG;
 }
 
 export function bouwAnalyse({

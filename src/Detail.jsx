@@ -15,6 +15,7 @@ import NulmetingMedewerker from "./NulmetingMedewerker.jsx";
 import Feestscherm from "./Feestscherm.jsx";
 import { programmadag, percentageVoorType, percentageVoorFase, huidigeWeek } from "./lib/berekeningen.js";
 import { magTikken, heeftBevestigingNodig } from "./lib/rechten.js";
+import { magAnalyseOpenen, ANALYSE_VANAF_DAG } from "./lib/analyse.js";
 
 export default function Detail({
   onboarder,
@@ -47,6 +48,7 @@ export default function Detail({
   zetNulmetingScore,
   zetNulmetingNotitie,
   zetInvesteringsadvies,
+  onOpenAnalyse,
   terug,
 }) {
   const [feest, setFeest] = useState(false);
@@ -111,6 +113,35 @@ export default function Detail({
           <Tijdlijn dag={dag} programmaDagen={onboarder.programma_dagen} mijlpalen={mijlpalen} />
           <Voortgangsbalk label="Kennis" percentage={kennis} kleur={C.works} />
           <Voortgangsbalk label="Vaardigheden" percentage={vaardigheden} kleur={C.accent} />
+          {onboarder.status && onboarder.status !== "actief" && (
+            <div style={{ fontSize: 12, color: C.soft, marginTop: 10, padding: "6px 10px", background: C.bg, borderRadius: 8 }}>
+              {onboarder.status === "afgerond" ? "Programma afgerond" : "Gestopt"}
+              {onboarder.reden ? ` · ${onboarder.reden}` : ""}
+            </div>
+          )}
+          {magAnalyseOpenen(onboarder) ? (
+            <button
+              onClick={onOpenAnalyse}
+              style={{
+                width: "100%",
+                marginTop: 12,
+                padding: "10px 0",
+                borderRadius: 10,
+                border: `1px solid ${C.works}`,
+                background: "#fff",
+                color: C.works,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              100-dagenanalyse openen
+            </button>
+          ) : (
+            <div style={{ fontSize: 11.5, color: C.soft, marginTop: 10 }}>
+              De 100-dagenanalyse gaat open vanaf dag {ANALYSE_VANAF_DAG}.
+            </div>
+          )}
           {gebruiker.rol === "medewerker" && (
             <div style={{ fontSize: 12, color: C.soft, marginTop: 12, padding: "8px 12px", background: "#eef2f8", borderRadius: 10 }}>
               Stap 1 vink je zelf af. Vanaf stap 2 toon je het aan je VM of mentor.

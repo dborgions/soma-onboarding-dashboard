@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import { C } from "./theme";
 import Overzicht from "./Overzicht.jsx";
 import Detail from "./Detail.jsx";
+import Analyse from "./Analyse.jsx";
 import { programmadag, huidigeWeek } from "./lib/berekeningen.js";
 import { isAfgerond, huidigAdvies } from "./lib/nulmeting.js";
 
@@ -28,7 +29,9 @@ export default function Dashboard({ gebruiker }) {
   const [opmerkingen, setOpmerkingen] = useState(new Map()); // onboarder_id -> [opmerking, ...]
   const [logboek, setLogboek] = useState(new Map()); // onboarder_id -> [logregel, ...]
   const [gebruikersNaam, setGebruikersNaam] = useState(new Map()); // gebruiker_id -> naam
+  const [analyses, setAnalyses] = useState(new Map()); // onboarder_id -> rij
   const [geselecteerd, setGeselecteerd] = useState(null);
+  const [analyseOpen, setAnalyseOpen] = useState(false);
 
   useEffect(() => {
     laadAlles();
@@ -75,8 +78,9 @@ export default function Dashboard({ gebruiker }) {
       { data: indicatorenData, error: eIndicatoren },
       { data: nulmetingData, error: eNulmeting },
       { data: nulmetingIndicatorenData, error: eNulmetingIndicatoren },
+      { data: analysesData, error: eAnalyses },
     ] = await Promise.all([
-      supabase.from("onboarders").select("id, naam, startdatum, programma_dagen, vestiging_id, vestigingen(naam)").eq("actief", true),
+      supabase.from("onboarders").select("id, naam, startdatum, programma_dagen, vestiging_id, status, afgerond_op, reden, vestigingen(naam)").eq("actief", true),
       supabase.from("onderwerpen").select("*").eq("actief", true).order("volgorde"),
       supabase.from("niveau_stand").select("onboarder_id, onderwerp_id, niveau, bijgewerkt_op"),
       supabase.from("specialist_gesprekken").select("*"),
@@ -94,9 +98,10 @@ export default function Dashboard({ gebruiker }) {
       supabase.from("indicatoren").select("competentie_id, nr, tekst"),
       supabase.from("nulmeting").select("*"),
       supabase.from("nulmeting_indicatoren").select("*"),
+      supabase.from("analyses").select("*"),
     ]);
 
-    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen || eWeekcijfers || eWeeknotities || eKerncompetenties || eSpecialisten || eIndicatoren || eNulmeting || eNulmetingIndicatoren;
+    const eerste = eOnboarders || eOnderwerpen || eStand || eGesprekken || eKoppelingen || eMijlpalen || eLabels || eOpmerkingen || eLogboek || eGebruikers || eFasen || eWeekcijfers || eWeeknotities || eKerncompetenties || eSpecialisten || eIndicatoren || eNulmeting || eNulmetingIndicatoren || eAnalyses;
     if (eerste) {
       setFout("Het laden van de gegevens is niet gelukt: " + eerste.message);
       setLaden(false);
@@ -127,6 +132,7 @@ export default function Dashboard({ gebruiker }) {
       nmiMap.get(r.onboarder_id).add(`${r.competentie_id}-${r.indicator_nr}`);
     }
     setNulmetingIndicatoren(nmiMap);
+    setAnalyses(new Map(analysesData.map((r) => [r.onboarder_id, r])));
     setLaden(false);
   }
 
@@ -447,6 +453,47 @@ export default function Dashboard({ gebruiker }) {
     return { ok: true };
   }
 
+  // De drie velden die de VM tijdens het eindgesprek invult (bouwplan hoofdstuk 16).
+  async function slaAnalyseOp(onboarder, velden) {
+    const bestaand = analyses.get(onboarder.id) || {};
+    const rij = {
+      onboarder_id: onboarder.id,
+      sterk: bestaand.sterk || "",
+      werk_komend_halfjaar: bestaand.werk_komend_halfjaar || "",
+      afspraak: bestaand.afspraak || "",
+      ...velden,
+      door: gebruiker.id,
+      bijgewerkt_op: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from("analyses").upsert(rij).select().single();
+    if (error) return { ok: false, fout: error.message };
+    setAnalyses((huidig) => new Map(huidig).set(onboarder.id, data));
+    return { ok: true };
+  }
+
+  // Dossier afronden of stopzetten (bouwplan hoofdstuk 17 "Na dag 100").
+  async function zetOnboarderStatus(onboarder, status, reden) {
+    const { error } = await supabase.rpc("zet_onboarder_status", {
+      p_onboarder_id: onboarder.id,
+      p_status: status,
+      p_reden: reden || null,
+    });
+    if (error) return { ok: false, fout: error.message };
+    setOnboarders((huidig) =>
+      huidig.map((o) =>
+        o.id === onboarder.id
+          ? {
+              ...o,
+              status,
+              afgerond_op: status === "actief" ? null : new Date().toISOString().slice(0, 10),
+              reden: status === "actief" ? null : reden || null,
+            }
+          : o
+      )
+    );
+    return { ok: true };
+  }
+
   if (laden) {
     return <Midden><span style={{ color: C.soft }}>Laden...</span></Midden>;
   }
@@ -479,37 +526,32 @@ export default function Dashboard({ gebruiker }) {
     zetInvesteringsadvies,
   };
 
-  // Medewerker ziet altijd meteen zijn eigen dossier (bouwplan 7.4); RLS levert hem toch maar 1 rij.
-  if (gebruiker.rol === "medewerker") {
-    const eigenOnboarder = onboarders[0];
-    if (!eigenOnboarder) {
+  // Het dossier van één onboarder: het detailscherm, of de 100-dagenanalyse als die openstaat.
+  function dossierVoor(onboarder, terug) {
+    if (analyseOpen) {
       return (
-        <Midden>
-          <span style={{ color: C.soft, textAlign: "center" }}>
-            Er is nog geen onboarderdossier aan jouw account gekoppeld. Vraag je VM of mentor dit aan te maken.
-          </span>
-        </Midden>
+        <Analyse
+          onboarder={onboarder}
+          gebruiker={gebruiker}
+          gebruikersNaam={gebruikersNaam}
+          onderwerpen={onderwerpen}
+          standMap={niveauStand.get(onboarder.id) || new Map()}
+          niveauLabels={niveauLabels}
+          fasen={fasen}
+          weekcijfersMap={weekcijfers.get(onboarder.id) || new Map()}
+          gesprekkenLijst={gesprekken.get(onboarder.id) || []}
+          kerncompetenties={kerncompetenties}
+          specialisten={specialisten}
+          koppelingen={koppelingen}
+          nulmetingMap={nulmeting.get(onboarder.id) || new Map()}
+          logboekLijst={logboek.get(onboarder.id) || []}
+          analyse={analyses.get(onboarder.id)}
+          onOpslaan={(velden) => slaAnalyseOp(onboarder, velden)}
+          onZetStatus={(status, reden) => zetOnboarderStatus(onboarder, status, reden)}
+          terug={() => setAnalyseOpen(false)}
+        />
       );
     }
-    return (
-      <Detail
-        {...gedeeld}
-        onboarder={eigenOnboarder}
-        standMap={niveauStand.get(eigenOnboarder.id) || new Map()}
-        opmerkingenLijst={opmerkingen.get(eigenOnboarder.id) || []}
-        logboekLijst={logboek.get(eigenOnboarder.id) || []}
-        weekcijfersMap={weekcijfers.get(eigenOnboarder.id) || new Map()}
-        weeknotitiesLijst={weeknotities.get(eigenOnboarder.id) || []}
-        gesprekkenLijst={gesprekken.get(eigenOnboarder.id) || []}
-        nulmetingMap={nulmeting.get(eigenOnboarder.id) || new Map()}
-        nulmetingIndicatorenSet={nulmetingIndicatoren.get(eigenOnboarder.id) || new Set()}
-      />
-    );
-  }
-
-  // VM en mentor: overzicht met alle onboarders, klik voor het detailscherm.
-  if (geselecteerd) {
-    const onboarder = onboarders.find((o) => o.id === geselecteerd);
     return (
       <Detail
         {...gedeeld}
@@ -522,9 +564,34 @@ export default function Dashboard({ gebruiker }) {
         gesprekkenLijst={gesprekken.get(onboarder.id) || []}
         nulmetingMap={nulmeting.get(onboarder.id) || new Map()}
         nulmetingIndicatorenSet={nulmetingIndicatoren.get(onboarder.id) || new Set()}
-        terug={() => setGeselecteerd(null)}
+        onOpenAnalyse={() => setAnalyseOpen(true)}
+        terug={terug}
       />
     );
+  }
+
+  // Medewerker ziet altijd meteen zijn eigen dossier (bouwplan 7.4); RLS levert hem toch maar 1 rij.
+  if (gebruiker.rol === "medewerker") {
+    const eigenOnboarder = onboarders[0];
+    if (!eigenOnboarder) {
+      return (
+        <Midden>
+          <span style={{ color: C.soft, textAlign: "center" }}>
+            Er is nog geen onboarderdossier aan jouw account gekoppeld. Vraag je VM of mentor dit aan te maken.
+          </span>
+        </Midden>
+      );
+    }
+    return dossierVoor(eigenOnboarder, null);
+  }
+
+  // VM en mentor: overzicht met alle onboarders, klik voor het detailscherm.
+  if (geselecteerd) {
+    const onboarder = onboarders.find((o) => o.id === geselecteerd);
+    return dossierVoor(onboarder, () => {
+      setAnalyseOpen(false);
+      setGeselecteerd(null);
+    });
   }
 
   return (
