@@ -115,11 +115,7 @@ alter table analyses add column if not exists door uuid references gebruikers(id
 alter table analyses add column if not exists bijgewerkt_op timestamptz not null default now();
 
 -- Het logboek dekt zowel niveauwijzigingen als statuswijzigingen van specialistgesprekken
--- (bouwplan 7.5 en 7.6) — daarom mogen onderwerp_id/van_niveau/naar_niveau leeg zijn
--- en zijn er losse kolommen voor de gesprekskant.
-alter table logboek alter column onderwerp_id drop not null;
-alter table logboek alter column van_niveau drop not null;
-alter table logboek alter column naar_niveau drop not null;
+-- (bouwplan 7.5 en 7.6) — daarom zijn er losse kolommen voor de gesprekskant.
 alter table logboek add column if not exists competentie_id uuid references kerncompetenties(id);
 alter table logboek add column if not exists specialist_id uuid references specialisten(id);
 alter table logboek add column if not exists van_status text;
@@ -135,6 +131,13 @@ alter table logboek add column if not exists onboarder_id uuid references onboar
 alter table logboek add column if not exists onderwerp_id uuid references onderwerpen(id);
 alter table logboek add column if not exists van_niveau int not null default 0;
 alter table logboek add column if not exists naar_niveau int not null default 0;
+
+-- Bij een gesprekregel blijven onderwerp_id, van_niveau en naar_niveau leeg.
+-- Deze drie regels staan bewust ná de add column-regels hierboven, anders
+-- mislukken ze op een database waar het logboek nog niet bestaat.
+alter table logboek alter column onderwerp_id drop not null;
+alter table logboek alter column van_niveau drop not null;
+alter table logboek alter column naar_niveau drop not null;
 alter table logboek add column if not exists door_gebruiker uuid references gebruikers(id);
 alter table logboek add column if not exists programmadag int not null default 0;
 alter table logboek add column if not exists tijdstip timestamptz not null default now();
