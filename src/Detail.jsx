@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { C } from "./theme";
+import { C, T, R, SCHADUW, kaartStijl, knop, inkeping } from "./theme";
 import Tijdlijn from "./Tijdlijn.jsx";
 import Voortgangsbalk from "./Voortgangsbalk.jsx";
 import Bolletjes from "./Bolletjes.jsx";
@@ -105,14 +105,15 @@ export default function Detail({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 16 }}>
-        <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", minWidth: 0 }}>
-          <div style={{ fontWeight: 700, color: C.group, fontSize: 18 }}>{onboarder.naam}</div>
-          <div style={{ fontSize: 12, color: C.soft }}>{onboarder.vestigingen?.naam}</div>
+        <div style={{ ...kaartStijl, position: "relative" }}>
+          <span style={inkeping} />
+          <div style={{ fontWeight: 700, color: C.group, fontSize: T.h3, textTransform: "uppercase", letterSpacing: 0.3 }}>{onboarder.naam}</div>
+          <div style={{ fontSize: T.micro, color: C.soft, textTransform: "uppercase", letterSpacing: 1.2, marginTop: 3 }}>{onboarder.vestigingen?.naam}</div>
           <Tijdlijn dag={dag} programmaDagen={onboarder.programma_dagen} mijlpalen={mijlpalen} />
           <Voortgangsbalk label="Kennis" percentage={kennis} kleur={C.works} />
           <Voortgangsbalk label="Vaardigheden" percentage={vaardigheden} kleur={C.accent} />
           {gebruiker.rol === "medewerker" && (
-            <div style={{ fontSize: 12, color: C.soft, marginTop: 12, padding: "8px 12px", background: "#eef2f8", borderRadius: 10 }}>
+            <div style={{ fontSize: T.klein, color: C.soft, marginTop: 12, padding: "9px 12px", background: C.zacht, borderLeft: `3px solid ${C.works}` }}>
               Stap 1 vink je zelf af. Vanaf stap 2 toon je het aan je VM of mentor.
             </div>
           )}
@@ -129,19 +130,8 @@ export default function Detail({
                   await meldPlaatsing(onboarder);
                   setFeest(true);
                 }}
-                style={{
-                  width: "100%",
-                  marginTop: 10,
-                  padding: "12px 0",
-                  borderRadius: 12,
-                  border: "none",
-                  background: C.accent,
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 15,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(241,136,37,0.35)",
-                }}
+                data-knop="actie"
+                style={{ ...knop("actie"), width: "100%", marginTop: 10, fontSize: 14 }}
               >
                 Ik heb er eentje!
               </button>
@@ -162,18 +152,18 @@ export default function Detail({
           if (items.length === 0) return null;
           const pctFase = percentageVoorFase(standMap, onderwerpen, fase.id);
           return (
-            <details key={fase.id} style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${fase.kleur}`, minWidth: 0 }}>
+            <details key={fase.id} style={{ background: C.card, borderRadius: R.kaart, boxShadow: SCHADUW.kaart, borderLeft: `4px solid ${fase.kleur}`, minWidth: 0 }}>
               <summary style={{ padding: "12px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: C.group }}>{fase.label}</div>
-                  <div style={{ fontSize: 12, color: C.soft, fontWeight: 400 }}>{fase.sub}</div>
+                  <div style={{ fontWeight: 700, color: C.group, fontSize: T.klein, textTransform: "uppercase", letterSpacing: 1.3 }}>{fase.label}</div>
+                  <div style={{ fontSize: T.klein, color: C.soft, fontWeight: 300, marginTop: 2 }}>{fase.sub}</div>
                 </div>
                 {pctFase >= 100 ? (
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: C.green, borderRadius: 99, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "#fff", background: C.green, borderRadius: R.chip, padding: "4px 9px", whiteSpace: "nowrap" }}>
                     Vamos! rond
                   </span>
                 ) : (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: fase.kleur, whiteSpace: "nowrap" }}>{pctFase}%</span>
+                  <span style={{ fontSize: T.klein, fontWeight: 700, color: fase.kleur, whiteSpace: "nowrap" }}>{pctFase}%</span>
                 )}
               </summary>
               <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -200,8 +190,8 @@ export default function Detail({
           );
         })}
         {onderwerpenZonderFase.length > 0 && (
-          <details style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", borderLeft: `4px solid ${C.soft}` }}>
-            <summary style={{ padding: "12px 16px", fontWeight: 600, color: C.group, cursor: "pointer" }}>
+          <details style={{ background: C.card, borderRadius: R.kaart, boxShadow: SCHADUW.kaart, borderLeft: `4px solid ${C.soft}` }}>
+            <summary style={{ padding: "12px 16px", fontWeight: 700, fontSize: T.klein, textTransform: "uppercase", letterSpacing: 1.3, color: C.group, cursor: "pointer" }}>
               Nog niet ingedeeld
             </summary>
             <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -303,13 +293,16 @@ function OnderwerpRegel({ onderwerp, niveau, label, gebruiker, onTik, criteriaOp
   return (
     <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <span style={{ fontWeight: 500 }}>{onderwerp.naam}</span>
+        <span style={{ fontWeight: 400, fontSize: T.body, color: "#22263a" }}>{onderwerp.naam}</span>
         <span
           style={{
-            fontSize: 11,
-            padding: "2px 8px",
-            borderRadius: 99,
-            background: onderwerp.type === "kennis" ? "#eef2f8" : "#fdeee0",
+            fontSize: 9.5,
+            fontWeight: 700,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            padding: "4px 8px",
+            borderRadius: R.chip,
+            background: onderwerp.type === "kennis" ? C.zacht : C.zachtOranje,
             color: onderwerp.type === "kennis" ? C.works : C.accent,
             whiteSpace: "nowrap",
           }}
@@ -318,7 +311,7 @@ function OnderwerpRegel({ onderwerp, niveau, label, gebruiker, onTik, criteriaOp
         </span>
       </div>
 
-      <div style={{ fontSize: 13, color: afgerond ? C.green : C.soft, fontWeight: afgerond ? 600 : 400, margin: "4px 0 8px" }}>
+      <div style={{ fontSize: T.klein, color: afgerond ? C.green : C.soft, fontWeight: afgerond ? 700 : 300, margin: "4px 0 8px" }}>
         {label}
       </div>
 
@@ -344,7 +337,7 @@ function OnderwerpRegel({ onderwerp, niveau, label, gebruiker, onTik, criteriaOp
       </div>
 
       {criteriaOpen && (
-        <div style={{ fontSize: 12, color: C.soft, marginTop: 6, background: C.bg, borderRadius: 8, padding: 8 }}>
+        <div style={{ fontSize: T.klein, color: C.soft, marginTop: 8, background: C.zacht, borderLeft: `3px solid ${C.line}`, padding: "8px 10px" }}>
           {onderwerp.criterium_3 && <div>Kan toepassen: {onderwerp.criterium_3}</div>}
           {onderwerp.criterium_4 && <div style={{ marginTop: 4 }}>Beheerst: {onderwerp.criterium_4}</div>}
         </div>
@@ -356,9 +349,12 @@ function OnderwerpRegel({ onderwerp, niveau, label, gebruiker, onTik, criteriaOp
 }
 
 const chipStijl = {
-  fontSize: 11,
-  padding: "3px 10px",
-  borderRadius: 99,
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  padding: "4px 9px",
+  borderRadius: R.chip,
   background: C.bg,
   border: `1px solid ${C.line}`,
   color: C.soft,
@@ -368,8 +364,11 @@ const terugKnopStijl = {
   background: "none",
   border: "none",
   color: C.works,
-  fontSize: 14,
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 1.2,
+  textTransform: "uppercase",
   padding: 0,
-  marginBottom: 12,
+  marginBottom: 14,
   cursor: "pointer",
 };

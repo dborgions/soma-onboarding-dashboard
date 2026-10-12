@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { C } from "./theme";
+import { C, kaartStijl, kopStijl, veldStijl } from "./theme";
 
 export default function WeekNotitie({ magBewerken, tekst, laatsteDrie, onOpslaan }) {
   const [waarde, setWaarde] = useState(tekst || "");
@@ -10,10 +10,10 @@ export default function WeekNotitie({ magBewerken, tekst, laatsteDrie, onOpslaan
   }, [tekst]);
 
   return (
-    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", minWidth: 0 }}>
+    <div style={kaartStijl}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 6 }}>
-        <div style={{ fontWeight: 700, color: C.group, marginBottom: 8 }}>Notitie deze week</div>
-        {opgeslagen && <span style={{ fontSize: 11, color: C.green }}>Opgeslagen ✓</span>}
+        <h2 style={{ ...kopStijl, marginBottom: 8 }}>Notitie deze week</h2>
+        {opgeslagen && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.green }}>Opgeslagen</span>}
       </div>
       {magBewerken ? (
         <>
@@ -31,7 +31,7 @@ export default function WeekNotitie({ magBewerken, tekst, laatsteDrie, onOpslaan
             }}
             rows={3}
             placeholder="Wat viel op, wat spraken jullie af..."
-            style={{ width: "100%", boxSizing: "border-box", borderRadius: 8, border: `1px solid ${C.line}`, padding: 8, fontSize: 13, fontFamily: "inherit" }}
+            style={{ ...veldStijl, fontSize: 13.5, padding: 10, resize: "vertical" }}
           />
           <div style={{ fontSize: 11, color: C.soft, marginTop: 4 }}>Slaat automatisch op zodra je hier weg klikt.</div>
         </>
@@ -41,9 +41,9 @@ export default function WeekNotitie({ magBewerken, tekst, laatsteDrie, onOpslaan
 
       {laatsteDrie.length > 0 && (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontSize: 11, color: C.soft }}>Eerdere weken</div>
+          <div style={{ fontSize: 10, color: C.soft, textTransform: "uppercase", letterSpacing: 1.2, fontWeight: 700 }}>Eerdere weken</div>
           {laatsteDrie.map((n) => (
-            <div key={`${n.jaar}-${n.weeknummer}`} style={{ fontSize: 12, background: C.bg, borderRadius: 8, padding: "6px 10px" }}>
+            <div key={`${n.jaar}-${n.weeknummer}`} style={{ fontSize: 12, background: C.zacht, borderLeft: `3px solid ${C.line}`, padding: "7px 10px" }}>
               <div style={{ color: C.soft, fontSize: 11 }}>Week {n.weeknummer}</div>
               {n.tekst}
             </div>

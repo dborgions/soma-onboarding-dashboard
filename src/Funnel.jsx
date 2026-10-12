@@ -17,15 +17,15 @@ export default function Funnel({ cijfers }) {
         const conversie = vorige ? Math.round((waarde / vorige) * 100) : null;
         return (
           <div key={s.key}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.soft, marginBottom: 2 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.soft, marginBottom: 3 }}>
               <span>{s.label}</span>
               <span>
                 {waarde}
                 {conversie !== null && ` · ${conversie}%`}
               </span>
             </div>
-            <div style={{ background: C.line, borderRadius: 6, height: 14 }}>
-              <div style={{ width: `${(waarde / max) * 100}%`, background: C.works, height: "100%", borderRadius: 6 }} />
+            <div style={{ background: C.line, height: 13 }}>
+              <div style={{ width: `${(waarde / max) * 100}%`, background: C.works, height: "100%" }} />
             </div>
           </div>
         );

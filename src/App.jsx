@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { C } from "./theme";
+import { C, T, knop, FONT } from "./theme";
 import LoginScreen from "./LoginScreen.jsx";
 import Dashboard from "./Dashboard.jsx";
 
@@ -67,27 +67,64 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif" }}>
-      <div style={{ background: C.group }}>
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: FONT }}>
+      <div style={{ background: C.group, borderBottom: `3px solid ${C.accent}` }}>
         <div
           style={{
             maxWidth: 1100,
             margin: "0 auto",
-            padding: "16px 16px",
+            padding: "15px 16px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            gap: 12,
           }}
         >
-          <div>
-            <div style={{ color: "#fff", fontWeight: 800, fontSize: 20, letterSpacing: 0.3 }}>SOMA</div>
-            <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8 }}>
-              100 dagen onboarding
+          <div className="soma-balk-merk" style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+            <img
+              src={`${import.meta.env.BASE_URL}inlog/soma-logo-wit.png`}
+              alt="SOMA Group"
+              style={{ height: 22, display: "block", flexShrink: 0 }}
+            />
+            <div
+              className="soma-balk-titel"
+              style={{
+                color: "rgba(255,255,255,.72)",
+                fontSize: 10.5,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: 1.8,
+                borderLeft: "1px solid rgba(255,255,255,.28)",
+                paddingLeft: 14,
+                lineHeight: 1.25,
+              }}
+            >
+              100 dagen
+              <br />
+              onboarding
             </div>
           </div>
-          <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.85)", fontSize: 13, cursor: "pointer" }}>
-            Uitloggen ({gebruiker.naam})
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="soma-balk-naam" style={{ color: "rgba(255,255,255,.8)", fontSize: 12.5, whiteSpace: "nowrap" }}>{gebruiker.naam}</span>
+            <button
+            onClick={() => supabase.auth.signOut()}
+            style={{
+              background: "none",
+              border: "1px solid rgba(255,255,255,.35)",
+              borderRadius: 3,
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              padding: "7px 12px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Uitloggen
+            </button>
+          </div>
         </div>
       </div>
       <Dashboard key={gebruiker.id} gebruiker={gebruiker} />
@@ -99,15 +136,8 @@ function UitloggenKnop() {
   return (
     <button
       onClick={() => supabase.auth.signOut()}
-      style={{
-        marginTop: 16,
-        padding: "10px 20px",
-        borderRadius: 10,
-        border: `1px solid ${C.line}`,
-        background: "#fff",
-        color: C.soft,
-        cursor: "pointer",
-      }}
+      data-knop="secundair"
+      style={{ ...knop("secundair"), marginTop: 16 }}
     >
       Uitloggen
     </button>
@@ -124,7 +154,9 @@ function VolledigScherm({ children }) {
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+        fontFamily: FONT,
+        color: C.soft,
+        fontSize: T.body,
       }}
     >
       {children}

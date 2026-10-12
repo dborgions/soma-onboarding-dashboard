@@ -66,14 +66,14 @@ export default function Feestscherm({ onKlaar }) {
             src={`/feest/${FEEST_VIDEO}`}
             autoPlay
             playsInline
-            style={{ maxWidth: 320, width: "80vw", borderRadius: 14, marginBottom: 18, boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}
+            style={{ maxWidth: 320, width: "80vw", borderRadius: 2, marginBottom: 18, boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}
           />
         )}
         {!FEEST_VIDEO && FEEST_AFBEELDING && (
           <img
             src={`/feest/${FEEST_AFBEELDING}`}
             alt=""
-            style={{ maxWidth: 320, width: "80vw", borderRadius: 14, marginBottom: 18, boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}
+            style={{ maxWidth: 320, width: "80vw", borderRadius: 2, marginBottom: 18, boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}
           />
         )}
         <div style={{ fontSize: 42, fontWeight: 800 }}>Ik heb er eentje! 🎉</div>
