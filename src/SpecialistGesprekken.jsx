@@ -1,4 +1,4 @@
-import { C } from "./theme";
+import { C, R, kaartStijl, kopStijl } from "./theme";
 
 const STATUSSEN = ["nog niet gepland", "ingepland", "gevoerd"];
 const STIJL = {
@@ -9,9 +9,9 @@ const STIJL = {
 
 export default function SpecialistGesprekken({ kerncompetenties, specialisten, koppelingen, statusMap, onWijzig }) {
   return (
-    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <div style={{ fontWeight: 700, color: C.group, marginBottom: 4 }}>Specialistgesprekken</div>
-      <div style={{ fontSize: 12, color: C.soft, marginBottom: 12 }}>
+    <div style={kaartStijl}>
+      <h2 style={{ ...kopStijl, marginBottom: 5 }}>Specialistgesprekken</h2>
+      <div style={{ fontSize: 12, color: C.soft, marginBottom: 14, lineHeight: 1.5 }}>
         Geen agendakoppeling — de afspraak zelf maak je in Outlook, hier registreer je alleen de status.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -22,9 +22,9 @@ export default function SpecialistGesprekken({ kerncompetenties, specialisten, k
           const compleet = gevoerd === specialistIds.length;
 
           return (
-            <div key={comp.id} style={{ border: `1px solid ${compleet ? C.green : C.line}`, borderRadius: 12, padding: "10px 12px" }}>
+            <div key={comp.id} style={{ border: `1px solid ${C.line}`, borderLeft: `3px solid ${compleet ? C.green : C.line}`, borderRadius: R.chip, padding: "10px 12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontWeight: 700, fontSize: 13.5 }}>{comp.naam}</span>
+                <span style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: C.group }}>{comp.naam}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: compleet ? C.green : C.soft }}>
                   {gevoerd}/{specialistIds.length}
                 </span>
@@ -44,13 +44,13 @@ export default function SpecialistGesprekken({ kerncompetenties, specialisten, k
                         border: `1px solid ${stijl.rand}`,
                         background: stijl.bg,
                         color: stijl.tekst,
-                        borderRadius: 10,
-                        padding: "6px 11px",
+                        borderRadius: R.chip,
+                        padding: "7px 11px",
                         cursor: "pointer",
                       }}
                     >
                       <span style={{ display: "block", fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{specialist.naam}</span>
-                      <span style={{ display: "block", fontSize: 9.5, opacity: 0.85, marginTop: 1 }}>{status}</span>
+                      <span style={{ display: "block", fontSize: 9, opacity: 0.9, marginTop: 2, textTransform: "uppercase", letterSpacing: 0.7 }}>{status}</span>
                     </button>
                   );
                 })}

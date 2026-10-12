@@ -1,10 +1,10 @@
-import { C } from "./theme";
+import { C, R, SCHADUW } from "./theme";
 
 export default function Logboek({ regels, onderwerpNaam, niveauLabels, gebruikersNaam, competentieNaam, specialistNaam }) {
   const gesorteerd = [...regels].sort((a, b) => new Date(b.tijdstip) - new Date(a.tijdstip));
   return (
-    <details style={{ background: C.card, borderRadius: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <summary style={{ padding: "12px 16px", fontWeight: 600, color: C.group, cursor: "pointer" }}>
+    <details style={{ background: C.card, borderRadius: R.kaart, boxShadow: SCHADUW.kaart }}>
+      <summary style={{ padding: "12px 16px", fontWeight: 700, fontSize: 12.5, textTransform: "uppercase", letterSpacing: 1.3, color: C.group, cursor: "pointer" }}>
         Logboek ({gesorteerd.length})
       </summary>
       <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 8 }}>

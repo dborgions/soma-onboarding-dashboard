@@ -16,7 +16,8 @@ export default function Toast({ tekst, onTochNiet, onVerlopen }) {
         transform: "translateX(-50%)",
         background: C.group,
         color: "#fff",
-        borderRadius: 12,
+        borderRadius: 3,
+        borderLeft: `4px solid ${C.accent}`,
         padding: "12px 16px",
         display: "flex",
         alignItems: "center",
@@ -26,11 +27,11 @@ export default function Toast({ tekst, onTochNiet, onVerlopen }) {
         maxWidth: "calc(100vw - 32px)",
       }}
     >
-      <span style={{ fontSize: 13 }}>{tekst}</span>
+      <span style={{ fontSize: 13, fontWeight: 300 }}>{tekst}</span>
       {onTochNiet && (
         <button
           onClick={onTochNiet}
-          style={{ background: "none", border: "none", color: C.accent, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{ background: "none", border: "none", color: C.accent, fontWeight: 700, fontSize: 11, letterSpacing: 1.1, textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap" }}
         >
           Toch niet
         </button>

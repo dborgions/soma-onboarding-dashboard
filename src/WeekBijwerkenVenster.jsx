@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { C } from "./theme";
+import { C, R, SCHADUW, kopStijl, knop, inkeping } from "./theme";
 import { isVrijdag } from "./lib/berekeningen.js";
 
 const VELDEN = [
@@ -25,13 +25,14 @@ export default function WeekBijwerkenVenster({ huidig, onOpslaan, onAnnuleer }) 
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(23,26,64,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
       onClick={onAnnuleer}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.card, borderRadius: 14, padding: 20, maxWidth: 360, width: "100%" }}>
-        <div style={{ fontWeight: 700, color: C.group, marginBottom: 14 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.card, borderRadius: R.kaart, padding: 24, maxWidth: 380, width: "100%", position: "relative", boxShadow: SCHADUW.venster }}>
+        <span style={inkeping} />
+        <h2 style={{ ...kopStijl, fontSize: 13, marginBottom: 16 }}>
           {isVrijdag() ? "Week afsluiten" : "Week bijwerken"}
-        </div>
+        </h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {VELDEN.map((v) => (
             <div key={v.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -45,10 +46,10 @@ export default function WeekBijwerkenVenster({ huidig, onOpslaan, onAnnuleer }) 
           ))}
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-          <button onClick={onAnnuleer} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: "#fff", color: C.soft, cursor: "pointer" }}>
+          <button onClick={onAnnuleer} data-knop="stil" style={{ ...knop("stil"), flex: 1, padding: "11px 0" }}>
             Annuleren
           </button>
-          <button onClick={() => onOpslaan(waarden)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: C.works, color: "#fff", fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={() => onOpslaan(waarden)} data-knop="primair" style={{ ...knop("primair"), flex: 1, padding: "11px 0" }}>
             Opslaan
           </button>
         </div>
@@ -61,7 +62,7 @@ function StapKnop({ onClick, children }) {
   return (
     <button
       onClick={onClick}
-      style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${C.line}`, background: "#fff", fontSize: 16, cursor: "pointer" }}
+      style={{ width: 32, height: 32, borderRadius: R.chip, border: `1px solid ${C.line}`, background: "#fff", color: C.group, fontSize: 16, cursor: "pointer" }}
     >
       {children}
     </button>

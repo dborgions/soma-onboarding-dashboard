@@ -1,4 +1,4 @@
-import { C } from "./theme";
+import { C, R, kaartStijl, kopStijl } from "./theme";
 import { scoreNaarTienpunt } from "./lib/nulmeting.js";
 
 export default function NulmetingMedewerker({ kerncompetenties, nulmetingMap, koppelingen, specialisten, gesprekkenLijst }) {
@@ -13,9 +13,9 @@ export default function NulmetingMedewerker({ kerncompetenties, nulmetingMap, ko
   }
 
   return (
-    <div style={{ background: C.card, borderRadius: 14, padding: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <div style={{ fontWeight: 700, color: C.group, marginBottom: 4 }}>Nulmeting dag 30</div>
-      <div style={{ fontSize: 12, color: C.soft, marginBottom: 14 }}>
+    <div style={kaartStijl}>
+      <h2 style={{ ...kopStijl, marginBottom: 5 }}>Nulmeting dag 30</h2>
+      <div style={{ fontSize: 12, color: C.soft, marginBottom: 16, lineHeight: 1.5 }}>
         Je startpunt en groeipotentieel op de zeven kerncompetenties. Tien is expertniveau — daar groei je naartoe.
       </div>
 
@@ -28,8 +28,8 @@ export default function NulmetingMedewerker({ kerncompetenties, nulmetingMap, ko
                 <span>{c.naam}</span>
                 <span style={{ color: C.soft }}>{punt} / 10</span>
               </div>
-              <div style={{ background: C.line, borderRadius: 99, height: 7 }}>
-                <div style={{ width: `${punt * 10}%`, background: C.works, height: "100%", borderRadius: 99 }} />
+              <div style={{ background: C.line, height: 7 }}>
+                <div style={{ width: `${punt * 10}%`, background: C.works, height: "100%" }} />
               </div>
             </div>
           );
@@ -37,8 +37,8 @@ export default function NulmetingMedewerker({ kerncompetenties, nulmetingMap, ko
       </div>
 
       {sterk.length > 0 && (
-        <div style={{ background: "#eafaf3", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, color: C.green, marginBottom: 4 }}>Waar je sterk in bent</div>
+        <div style={{ background: "#eafaf3", borderLeft: `3px solid ${C.green}`, padding: 13, marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: C.green, marginBottom: 5 }}>Waar je sterk in bent</div>
           <div style={{ fontSize: 12, color: C.soft, marginBottom: 6 }}>
             Juist hier wordt het meeste van je verwacht.
           </div>
@@ -49,8 +49,8 @@ export default function NulmetingMedewerker({ kerncompetenties, nulmetingMap, ko
       )}
 
       {groei.length > 0 && (
-        <div style={{ background: "#fdeee0", borderRadius: 10, padding: 12 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, color: C.accent, marginBottom: 4 }}>Waar je werk ligt</div>
+        <div style={{ background: C.zachtOranje, borderLeft: `3px solid ${C.accent}`, padding: 13 }}>
+          <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: C.accent, marginBottom: 5 }}>Waar je werk ligt</div>
           {groei.map((c) => {
             const specialistIds = koppelingen.filter((k) => k.competentie_id === c.id).map((k) => k.specialist_id);
             const notitie = nulmetingMap.get(c.id)?.notitie;
@@ -63,7 +63,7 @@ export default function NulmetingMedewerker({ kerncompetenties, nulmetingMap, ko
                     const specialist = specialisten.find((s) => s.id === sid);
                     if (!specialist) return null;
                     return (
-                      <span key={sid} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, background: "#fff", border: `1px solid ${C.line}`, color: C.soft }}>
+                      <span key={sid} style={{ fontSize: 10.5, padding: "4px 10px", borderRadius: R.chip, background: "#fff", border: `1px solid ${C.line}`, color: C.soft }}>
                         {specialist.naam} · {statusVoorSpecialist(c.id, sid)}
                       </span>
                     );
