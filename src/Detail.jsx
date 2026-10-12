@@ -122,6 +122,7 @@ export default function Detail({
         <WeekSectie
           magBewerken={magWeekBewerken}
           cijfers={huidigeCijfers}
+          alleCijfers={weekcijfersMap}
           onOpslaan={(waarden) => slaWeekcijfersOp(onboarder.id, waarden)}
           plaatsingKnop={
             gebruiker.rol === "medewerker" && (
