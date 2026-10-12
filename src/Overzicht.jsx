@@ -1,4 +1,5 @@
 import { C, T, R, SCHADUW, inkeping } from "./theme";
+import KopBand, { BandCijfer } from "./KopBand.jsx";
 import Tijdlijn from "./Tijdlijn.jsx";
 import { programmadag, percentageVoorType, huidigeWeek, dagenGeleden } from "./lib/berekeningen.js";
 
@@ -7,14 +8,14 @@ const STIL_NA_DAGEN = 7;
 export default function Overzicht({ onboarders, onderwerpen, niveauStand, gesprekken, totaalKoppelingen, mijlpalen, weekcijfers, laatsteBeweging, onSelecteer }) {
   const { jaar, weeknummer } = huidigeWeek();
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: T.micro, fontWeight: 700, letterSpacing: 2.4, textTransform: "uppercase", color: C.accent }}>
-          De weg naar succes
-        </div>
-        <h1 style={{ color: C.group, fontSize: T.h1, textTransform: "uppercase", marginTop: 4 }}>Onboarders</h1>
-      </div>
+    <>
+      <KopBand
+        kicker="De weg naar succes"
+        titel="Onboarders"
+        rechts={<BandCijfer waarde={onboarders.length} label={onboarders.length === 1 ? "in het programma" : "in het programma"} />}
+      />
 
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
       {onboarders.length === 0 && (
         <p style={{ color: C.soft, fontSize: T.body }}>Er zijn nog geen actieve onboarders.</p>
       )}
@@ -119,7 +120,8 @@ export default function Overzicht({ onboarders, onderwerpen, niveauStand, gespre
           );
         })}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

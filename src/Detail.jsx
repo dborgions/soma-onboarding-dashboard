@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { C, T, R, SCHADUW, kaartStijl, knop, inkeping } from "./theme";
+import { C, T, R, SCHADUW, kaartStijl, kopStijl, knop, inkeping } from "./theme";
+import KopBand, { BandCijfer } from "./KopBand.jsx";
 import Tijdlijn from "./Tijdlijn.jsx";
 import Voortgangsbalk from "./Voortgangsbalk.jsx";
 import Bolletjes from "./Bolletjes.jsx";
@@ -97,7 +98,15 @@ export default function Detail({
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16, paddingBottom: 60 }}>
+    <>
+      <KopBand
+        kicker={gebruiker.rol === "medewerker" ? "Jouw scorebord" : "100 dagen onboarding"}
+        titel={onboarder.naam}
+        onderschrift={onboarder.vestigingen?.naam}
+        rechts={<BandCijfer waarde={dag} van={onboarder.programma_dagen} label="Dag" />}
+      />
+
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16, paddingBottom: 60 }}>
       {terug && (
         <button onClick={terug} style={terugKnopStijl}>
           &larr; Terug naar overzicht
@@ -107,8 +116,7 @@ export default function Detail({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 16 }}>
         <div style={{ ...kaartStijl, position: "relative" }}>
           <span style={inkeping} />
-          <div style={{ fontWeight: 700, color: C.group, fontSize: T.h3, textTransform: "uppercase", letterSpacing: 0.3 }}>{onboarder.naam}</div>
-          <div style={{ fontSize: T.micro, color: C.soft, textTransform: "uppercase", letterSpacing: 1.2, marginTop: 3 }}>{onboarder.vestigingen?.naam}</div>
+          <h2 style={kopStijl}>Voortgang</h2>
           <Tijdlijn dag={dag} programmaDagen={onboarder.programma_dagen} mijlpalen={mijlpalen} />
           <Voortgangsbalk label="Kennis" percentage={kennis} kleur={C.works} />
           <Voortgangsbalk label="Vaardigheden" percentage={vaardigheden} kleur={C.accent} />
@@ -284,7 +292,8 @@ export default function Detail({
       )}
 
       {toast && <Toast tekst={toast.tekst} onTochNiet={tochNiet} onVerlopen={() => setToast(null)} />}
-    </div>
+      </div>
+    </>
   );
 }
 
